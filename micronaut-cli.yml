@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: org.doogie
+testFramework: junit
+sourceLanguage: groovy
+buildTool: gradle
+features: [annotation-api, app-name, docker, file-watch, gradle, groovy, groovy-application, http-client, junit, logback, mongo-gorm, mongo-reactive, netty-server, readme, security-annotations, security-jwt, shade, yaml]
