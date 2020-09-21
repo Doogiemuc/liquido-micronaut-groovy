@@ -5,6 +5,7 @@ config/
 application*.yml
 
 .gradle/
+build/
 
 # Logs
 logs
