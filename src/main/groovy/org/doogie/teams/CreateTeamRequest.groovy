@@ -1,7 +1,6 @@
-package org.doogie.team
+package org.doogie.teams
 
 import io.micronaut.core.annotation.Introspected
-import org.doogie.user.User
 
 import javax.validation.constraints.NotBlank
 

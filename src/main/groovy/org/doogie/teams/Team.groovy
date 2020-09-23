@@ -1,8 +1,7 @@
-package org.doogie.team
+package org.doogie.teams
 
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
-import org.doogie.user.User;
 
 import javax.validation.constraints.NotBlank
 import javax.validation.constraints.NotNull;

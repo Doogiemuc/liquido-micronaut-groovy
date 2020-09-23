@@ -80,7 +80,7 @@ class LiquidoTokenValidator implements TokenValidator {
 		Map<String, Object> attributes = new HashMap<>()
 		attributes[TEAM_NAME_CLAIM] = teamName
 		//TODO: load user's roles from DB.Def
-		Collection<String> roles = [LIQUIDO_ROLE_USER]															// Groovy I like! :-) Easily create lists
+		Collection<String> roles = [LIQUIDO_ROLE_USER, LIQUIDO_ROLE_ADMIN]															// Groovy I like! :-) Easily create lists
 
 		UserDetails userDetails = new UserDetails(username, roles, attributes)
 		Authentication auth = new AuthenticationUserDetailsAdapter(userDetails, TokenConfiguration.DEFAULT_ROLES_NAME, TokenConfiguration.DEFAULT_NAME_KEY)

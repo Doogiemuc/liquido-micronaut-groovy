@@ -1,4 +1,4 @@
-package org.doogie.user
+package org.doogie.teams
 
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected;

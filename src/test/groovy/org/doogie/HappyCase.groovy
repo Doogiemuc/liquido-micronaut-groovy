@@ -9,14 +9,14 @@ import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.exceptions.HttpClientResponseException
 import io.micronaut.runtime.server.EmbeddedServer
-import org.doogie.team.Team
+import org.doogie.teams.Team
 import org.grails.datastore.mapping.mongo.MongoDatastore
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
 
 @Slf4j
-class HttpApiTest extends Specification {
+class HappyCase extends Specification {
 
 	@Shared
 	@AutoCleanup
@@ -35,9 +35,11 @@ class HttpApiTest extends Specification {
 
 	static String teamName
 	static String inviteCode
-	static String jwt
+	static String adminJwt
+	static String userJwt
 
-	void "API is available"() {
+
+	void "LIQUIDO backend API is available"() {
 		when:
 		HttpResponse res = client.exchange("/")
 
@@ -60,11 +62,11 @@ class HttpApiTest extends Specification {
 		HttpResponse res = client.exchange(HttpRequest.POST('/team', newTeamJson.toString()), Map.class)
 		def body = res.body.get()
 		inviteCode = body.get("team").get("inviteCode")
-		this.jwt = body.get("jwt")
+		this.adminJwt = body.get("jwt")
 		println "[TEST OK] Created team: " + body.get("team").toString()
 
 		then:
-		this.jwt
+		this.adminJwt
 		res.status.code == 200
 		res.body.get().get("team").get("name") == teamName    // Groovies type inference at runtime is dark voodoo magic :-)
 	}
@@ -80,25 +82,42 @@ class HttpApiTest extends Specification {
 		)
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest.toString()), String.class)
-		String body = res.body()
+		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest.toString()), Map.class)
+		this.userJwt = res.body.get().get("jwt")
 
 		then:
 		res.status.code == 200
-		body.contains(teamName)
-		body.contains('"inviteCode":"'+inviteCode+'"')
+		this.userJwt
+		res.body.get().get("team").get("name") == teamName
 	}
 
 
 	void "GET info about own team"() {
-		assert jwt : "Need JWT to GET info about own team"
+		assert userJwt : "Need JWT to GET info about own team"
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.GET('/team').bearerAuth(jwt), String.class)
+		HttpResponse res = client.exchange(HttpRequest.GET('/team').bearerAuth(userJwt), String.class)
 
 		then:
 		res.status.code == 200
 		res.body.toString().contains(teamName)
+	}
+
+	void "Create new poll and then get polls of team"() {
+		assert adminJwt : "Need JWT to GET polls of team"
+
+		when:
+		HttpResponse res1 = client.exchange(HttpRequest.POST('/polls', "New poll title from test").bearerAuth(adminJwt), String.class)
+
+		then:
+		res1.status.code == 200
+
+		when:
+		HttpResponse res2 = client.exchange(HttpRequest.GET('/polls').bearerAuth(adminJwt), String.class)
+		log.info "========= polls of team \n" + res2.body()
+
+		then:
+		res2.status.code == 200
 	}
 
 
