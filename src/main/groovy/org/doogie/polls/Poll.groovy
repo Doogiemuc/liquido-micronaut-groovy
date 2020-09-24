@@ -1,16 +1,19 @@
 package org.doogie.polls
 
+import com.mongodb.lang.NonNull
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
+import io.micronaut.validation.Validated
 import org.doogie.teams.Team
 import org.doogie.teams.User
 
 import javax.validation.constraints.NotBlank
 import javax.validation.constraints.NotEmpty
-import javax.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull
+import javax.validation.constraints.Size;
 
 @Introspected
-@Entity
+@Entity				// Be careful this is @grails.gorm.annotation.Entity and not @javax.persistence.Entity
 class Poll {
 
 	enum Status {
@@ -20,8 +23,8 @@ class Poll {
 	}
 
 	class Proposal {
-		@NotBlank	String title
-		@NotBlank String description
+		@NotBlank	@Size(min=10) String title   //TODO: @NonNull  mongodb
+		@NotBlank @Size(min=10) String description
 		@NotNull  User createdBy
 		List<User> supporters
 		long getNumSupporters() {
@@ -35,7 +38,7 @@ class Poll {
 	}
 
 	@NotNull  Team team
-	@NotBlank String title
+	@NotBlank @Size(min=10) String title
 	@NotNull  Status status
 	List<Proposal> proposals
 	List<Ballot> ballots
@@ -43,7 +46,7 @@ class Poll {
 
 	Poll() { }
 
-	Poll(@NotNull Team team, @NotEmpty String title) {
+	Poll(@NotNull Team team, @NotEmpty @NotNull @Size(min=10) String title) {
 		this.team      = team
 		this.title     = title
 		this.status    = Status.ELABORATION
@@ -56,7 +59,7 @@ class Poll {
 		int max = 10
 		StringBuffer buf = new StringBuffer()
 		buf.append('[')
-		for (i in 0..Math.min(proposals.size(), max)) {
+		for (i in 0..Math.min(proposals.size()-1, max)) {
 			buf.append('"' + this.proposals.get(i).title+ '"')
 			if (i<max) buf.append(",")
 		}

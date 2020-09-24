@@ -18,12 +18,16 @@ configurations {
 }
 
 dependencies {
+    // Graddle doc https://docs.gradle.org/current/userguide/building_java_projects.html#sec:java_dependency_management_overview
+
     compileOnly(platform("io.micronaut:micronaut-bom:$micronautVersion"))
     compileOnly("io.micronaut:micronaut-inject-groovy")
 
-    compile group: 'org.codehaus.groovy', name: 'groovy-json', version: '2.0.1'
+    implementation group: 'org.codehaus.groovy', name: 'groovy-json', version: '2.0.1'
 
     compileOnly("io.micronaut.security:micronaut-security-annotations")
+    compileOnly("io.micronaut:micronaut-inject-groovy")
+
     implementation(platform("io.micronaut:micronaut-bom:$micronautVersion"))
     implementation("io.micronaut:micronaut-inject")
     implementation("io.micronaut:micronaut-validation")
@@ -35,19 +39,18 @@ dependencies {
     implementation("io.micronaut.groovy:micronaut-mongo-gorm")
     implementation("io.micronaut.security:micronaut-security-jwt")
     runtimeOnly("ch.qos.logback:logback-classic")
+
     testImplementation(enforcedPlatform("io.micronaut:micronaut-bom:$micronautVersion"))
-    testImplementation("io.micronaut:micronaut-inject-groovy")
     testImplementation("io.micronaut.test:micronaut-test-spock")
+    testImplementation("io.micronaut:micronaut-inject-groovy")
+    testImplementation("io.micronaut.groovy:micronaut-mongo-gorm")
+    //testImplementation('org.grails.plugins:mongodb:7.0.0')
+    testImplementation("org.grails:grails-datastore-gorm-mongodb:7.0.0.RELEASE")
 
     //testCompile platform("org.spockframework:spock-bom:2.0-M3-groovy-2.5")
     //testCompile "org.spockframework:spock-core"
 
-    //testImplementation("org.junit.jupiter:junit-jupiter-api")
-    //testImplementation("io.micronaut.test:micronaut-test-junit5")
-    //testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
-
-
-    testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:2.0.1")
+    //do not need integrated MongoDB testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:2.0.1")
 }
 
 test.classpath += configurations.developmentOnly

@@ -1,7 +1,6 @@
 package org.doogie.teams
 
 import groovy.json.JsonBuilder
-import groovy.json.JsonOutput
 import groovy.util.logging.Slf4j
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.*
@@ -12,6 +11,7 @@ import io.micronaut.security.rules.SecurityRule
 import io.micronaut.security.token.jwt.generator.JwtTokenGenerator
 import io.micronaut.validation.Validated
 import org.doogie.security.LiquidoTokenValidator
+import org.springframework.context.annotation.Profile
 
 import javax.inject.Inject
 import javax.validation.Valid
@@ -33,6 +33,15 @@ class TeamController {
 
 	@Inject
 	JwtTokenGenerator tokenGenerator
+
+	@Get("/devLogin")
+	@Secured(SecurityRule.IS_ANONYMOUS)
+	@Profile("test")
+	HttpResponse devLogin(@QueryValue String email, @QueryValue String teamName) {
+		String token = tokenGenerator.generateToken("sub": email, "teamName": teamName).orElseThrow(() -> new HttpServerException("cannot generate JWT in devLogin"))
+		return HttpResponse.ok([jwt: token])
+	}
+
 
 	/**
 	 * Create a new team.
@@ -69,7 +78,7 @@ class TeamController {
 		team.save(flush: true)
 
 		String token = tokenGenerator.generateToken("sub": req.userEmail, "teamName": team.name).orElseThrow(() -> new HttpServerException("cannot generate JWT"))
-		return HttpResponse.ok(JsonOutput.toJson([msg: "Joined team", team: [ name: team.name], jwt: token]))
+		return HttpResponse.ok([msg: "Joined team", team: [ name: team.name], jwt: token])
 	}
 
 	//TODO: @Post("/login")  with email and OTT in req.body also for normal users

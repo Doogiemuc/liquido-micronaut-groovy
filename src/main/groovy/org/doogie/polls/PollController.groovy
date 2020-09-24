@@ -3,6 +3,7 @@ package org.doogie.polls
 import groovy.util.logging.Slf4j
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
+import io.micronaut.http.annotation.Body
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 import io.micronaut.http.annotation.Post
@@ -14,6 +15,7 @@ import org.doogie.security.LiquidoTokenValidator
 import org.doogie.teams.Team
 
 import javax.inject.Inject
+import javax.validation.Valid
 
 @Validated
 @Controller
@@ -66,12 +68,12 @@ class PollController {
 
 	@Post("/polls")
 	@Secured([LiquidoTokenValidator.LIQUIDO_ROLE_USER])
-	HttpResponse createPoll() {
+	HttpResponse createPoll(@Body Map createPollReq) {
 		Team team = getTeamFormJWT()
-		Poll poll = new Poll(team, "A poll title")
+		Poll poll = new @Valid Poll(team, createPollReq.get("title"))
 		poll.save(flush: true)
 		log.info "=========== Admin created new Poll"  // +poll.toString()
-		return HttpResponse.ok()
+		return HttpResponse.ok(poll)
 	}
 
 
