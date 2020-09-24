@@ -1,6 +1,7 @@
 package org.doogie
 
 import groovy.json.JsonBuilder
+import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
 import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Value
@@ -49,6 +50,8 @@ class HappyCase extends Specification {
 
 	@Inject
 	ApplicationContext ctx
+
+	JsonSlurper slurper = new JsonSlurper()
 
 
 	//TODO: USe declarative HTTP client (via simple interface) https://piotrminkowski.com/2019/11/12/micronaut-tutorial-reactive/
@@ -100,28 +103,27 @@ class HappyCase extends Specification {
 
 	void "create team"() {
 		given:
-		JsonBuilder newTeamJson = new JsonBuilder()
-		this.teamName = "Teamname_"+now
-		newTeamJson(
+		this.teamName = "HappyTeam_"+now
+		def newTeam= [
 			teamName: teamName,
 			adminName: "Admin Name_"+now,
 			adminEmail: "admin" + now + "@liquido.me"
-		)
+		]
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.POST('/team', newTeamJson.toString()), Map.class)
-		def body = res.body.get()
-		inviteCode = body.get("team").get("inviteCode")
-		this.adminJwt = body.get("jwt")
-		println "[TEST OK] Created team: " + body.get("team").toString()
+		HttpResponse res = client.exchange(HttpRequest.POST('/team', newTeam), String.class)
+		def json = slurper.parseText(res.body())
 
 		then:
-		this.adminJwt
 		res.status.code == 200
-		res.body.get().get("team").get("name") == teamName    // Groovies type inference at runtime is dark voodoo magic :-)
+		json.team.name == teamName
+		(this.adminJwt = json.jwt) != null
+		(this.inviteCode = json.team.inviteCode) != null
 	}
 
 	void "join Team"() {
+		assert inviteCode : "Need invite code to join Team"
+
 		given:
 		long now = System.currentTimeMillis() % 10000;
 		JsonBuilder joinTeamRequest = new JsonBuilder()
@@ -176,5 +178,15 @@ class HappyCase extends Specification {
 		res2.status.code == 200
 	}
 
+	def cleanupSpec() {
+		log.info("======================== cleanup =====================")
+		Team teamUnderTest = Team.findByName(teamName)
+		if (teamUnderTest != null) {
+			log.debug("Deleting team that was created by HappyCase test: "+teamName)
+			teamUnderTest.delete(flush: true)
+		} else {
+			log.error("Cannot delete teamUnderTest")
+		}
+	}
 
 }
