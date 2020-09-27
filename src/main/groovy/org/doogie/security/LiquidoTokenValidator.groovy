@@ -12,11 +12,12 @@ import io.micronaut.security.authentication.UserDetails
 import io.micronaut.security.token.config.TokenConfiguration
 import io.micronaut.security.token.validator.TokenValidator
 import io.reactivex.Flowable
+import org.doogie.teams.Team
+import org.doogie.teams.User
 import org.reactivestreams.Publisher
 
 import javax.inject.Singleton
 import java.text.ParseException
-import java.util.concurrent.Flow
 
 /**
  * Validate a given JWT and return an {@link Authentication} that contains the {@link UserDetails}.
@@ -28,9 +29,11 @@ import java.util.concurrent.Flow
 @Slf4j
 class LiquidoTokenValidator implements TokenValidator {
 
-	static final String TEAM_NAME_CLAIM = "teamName"
-	static final String LIQUIDO_ROLE_USER = "LIQUIDO_ROLE_USER"
-	static final String LIQUIDO_ROLE_ADMIN = "LIQUIDO_ROLE_ADMIN"
+	static final String TEAM_NAME_ATTR         = "teamName"
+	static final String CURRENT_USER_ATTR      = "currentUser"
+	static final String TEAM_ATTRIBUTE         = "team"
+	static final String LIQUIDO_ROLE_USER      = "LIQUIDO_ROLE_USER"
+	static final String LIQUIDO_ROLE_ADMIN     = "LIQUIDO_ROLE_ADMIN"
 
 	/** MUST set order higher then Micronaut's JwtTokenValidator, otherwise this LiquidoTokenValidator will not be called at all! */
 	@Override
@@ -62,30 +65,47 @@ class LiquidoTokenValidator implements TokenValidator {
 			return Flowable.empty()   // not authenticated
 		}
 
-		String username = jwt.getJWTClaimsSet().getSubject()
-		if (!username) {
+		// Get subject from JWT == email
+		String email = jwt.getJWTClaimsSet().getSubject()
+		if (!email) {
 			log.debug("Cannot extract username from JWT claim 'sub'")
 			return Flowable.empty()
 		}
 
-		String teamName = jwt.getJWTClaimsSet().getStringClaim(TEAM_NAME_CLAIM)
+		// get teamname from JWT
+		String teamName = jwt.getJWTClaimsSet().getStringClaim(TEAM_NAME_ATTR)
 		if (!teamName) {
-			log.debug("JWT is invalid. It has no claim "+TEAM_NAME_CLAIM)
+			log.debug("JWT is invalid. It has no claim "+TEAM_NAME_ATTR)
 			return Flowable.empty()
 		}
 
+		// lookup team in DB
+		Team team = Team.findByName(teamName)
+		if (!team) {
+			log.debug("Team '"+teamName+"' not found. => Unauthorized")
+			return Flowable.empty()
+		}
 
-		//TODO: Should I check that team exists?
+		// check if User with that email is member of Team
+		User user = team.members.find {it.email == email }
+		if (!user) {
+			log.debug("User with .email='"+email+"' is not part of team '"+teamName+"' => Unauthorized")
+			return Flowable.empty()
+		}
 
+		// Put the teamName and the whole team into the attributes of the UserDetails
 		Map<String, Object> attributes = new HashMap<>()
-		attributes[TEAM_NAME_CLAIM] = teamName
-		//TODO: load user's roles from DB.Def
+		attributes[TEAM_NAME_ATTR]    = teamName
+		attributes[TEAM_ATTRIBUTE]    = team
+		attributes[CURRENT_USER_ATTR] = user
+
+		//TODO: load user's roles from DB  _OR_  add role admin if given in JWT
 		Collection<String> roles = [LIQUIDO_ROLE_USER, LIQUIDO_ROLE_ADMIN]															// Groovy I like! :-) Easily create lists
 
-		UserDetails userDetails = new UserDetails(username, roles, attributes)
+		UserDetails userDetails = new UserDetails(email, roles, attributes)
 		Authentication auth = new AuthenticationUserDetailsAdapter(userDetails, TokenConfiguration.DEFAULT_ROLES_NAME, TokenConfiguration.DEFAULT_NAME_KEY)
 
-		//TODO: cache the response
+		//TODO: implement a LiquidoAuthenticationAdapter that contains all the info we currently put into UserDetailAttributes
 
 		return Flowable.just(auth)
 	}

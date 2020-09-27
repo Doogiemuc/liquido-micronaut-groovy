@@ -43,7 +43,6 @@ class NegativeTests extends Specification {
 	def setupSpec() {
 		log.info "=========== Setting up tests "
 
-		log.info("====================== Found team: "+team.toString())
 	}
 
 	long now = System.currentTimeMillis() % 100000;
@@ -115,7 +114,7 @@ class NegativeTests extends Specification {
 		e.status.code == 400
 	}
 
-
+	// TODO: create poll with too short title should fail!   NEEDS FIX!
 
 
 }

@@ -25,6 +25,8 @@ Implemented in Groovy with [Micronaut](https://docs.micronaut.io) and [GORM](htt
 For each of these you can provide custom implementations.
 
 
+`mongodb://localhost:27017/test2?readPreference=primary&appname=Liquido&ssl=false&uuidRepresentation=standard`
+
 # Resources & Links
 
  - [Micronaut-Mongo-Gorm-Example @ GitHub](https://github.com/jeantessier/micronaut-mongo-gorm-example)

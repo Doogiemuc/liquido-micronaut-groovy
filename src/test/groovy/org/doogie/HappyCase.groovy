@@ -12,6 +12,7 @@ import io.micronaut.http.client.HttpClient
 import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
 import org.doogie.polls.Poll
+import org.doogie.polls.Proposal
 import org.doogie.teams.Team
 import org.grails.datastore.mapping.mongo.MongoDatastore
 import spock.lang.AutoCleanup
@@ -88,6 +89,8 @@ class HappyCase extends Specification {
 	static String inviteCode
 	static String adminJwt
 	static String userJwt
+	static Team team
+	static Poll poll
 
 
 	void "LIQUIDO backend API is available"() {
@@ -101,7 +104,7 @@ class HappyCase extends Specification {
 		res.status.code == 200
 	}
 
-	void "create team"() {
+	void "Create team"() {
 		given:
 		this.teamName = "HappyTeam_"+now
 		def newTeam= [
@@ -137,34 +140,30 @@ class HappyCase extends Specification {
 		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest.toString()), Map.class)
 		this.userJwt = res.body.get().get("jwt")
 
-		then:
+		then: "joinTeam returned JWT and info about team"
 		res.status.code == 200
 		this.userJwt
 		res.body.get().get("team").get("name") == teamName
 	}
 
-
-
-
-	void "GET info about own team"() {
+	void "Get info about own team"() {
 		assert userJwt : "Need JWT to GET info about own team"
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.GET('/team').bearerAuth(userJwt), String.class)
+		this.team = client.retrieve(HttpRequest.GET('/team').bearerAuth(userJwt), Team.class)
 
 		then:
-		res.status.code == 200
-		res.body.toString().contains(teamName)
+		this.team.name == teamName
 	}
 
 	void "Create new poll and then get polls of team"() {
 		assert adminJwt : "Need JWT to GET polls of team"
 
 		given:
-		String title = 'a' // 'Poll from Happy Case '+now
+		String title = 'Poll from Happy Case '+now
 
 		when:
-		Poll poll = client.retrieve(HttpRequest.POST('/polls', '{"title":"'+title+'"}').bearerAuth(adminJwt), Poll.class)
+		this.poll = client.retrieve(HttpRequest.POST('/polls', '{"title":"'+title+'"}').bearerAuth(adminJwt), Poll.class)
 
 		then:
 		poll.title == title
@@ -178,6 +177,36 @@ class HappyCase extends Specification {
 		res2.status.code == 200
 	}
 
+	void "Add proposal to poll and retrieve it back"() {
+		assert userJwt : "Need JWT to add proposal"
+		assert poll : "Need poll to add proposal"
+
+		given:
+		def newProposal = [
+			title: "Happy Proposal "+now,
+			description: "Proposal created by Happy Case in Team "+teamName
+		]
+
+		when:
+		Proposal prop = client.retrieve(HttpRequest.POST("/polls/${poll.id}/proposals", newProposal).bearerAuth(userJwt), Proposal.class)
+
+		then:
+		prop.id
+		prop.title == newProposal.title
+
+		when:
+		Poll poll = client.retrieve(HttpRequest.GET("/polls/${poll.id}").bearerAuth(userJwt), Poll.class)
+		log.info "==============", poll
+
+		then: "Proposal is now part of poll"
+		poll.proposals.find({it.title == prop.title})
+	}
+
+
+
+	/**
+	 * Make test repeatable and cleanup after themselves
+	 */
 	def cleanupSpec() {
 		log.info("======================== cleanup =====================")
 		Team teamUnderTest = Team.findByName(teamName)
