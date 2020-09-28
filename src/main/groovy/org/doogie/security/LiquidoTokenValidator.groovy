@@ -53,7 +53,7 @@ class LiquidoTokenValidator implements TokenValidator {
 	 * Token must contain a 'teamName' claim.
 	 * @param token encoded JWT token value
 	 * @param request the HTTP request
-	 * @return Authentication with UserDetails in it, if token is valid. Flowable.empty() otherwise.
+	 * @return Authentication with UserDetails in it, if token is valid. Or Flowable.empty() otherwise.
 	 */
 	@Override
 	Publisher<Authentication> validateToken(String token, @Nullable HttpRequest<?> request) {
@@ -72,7 +72,7 @@ class LiquidoTokenValidator implements TokenValidator {
 			return Flowable.empty()
 		}
 
-		// get teamname from JWT
+		// get teamName from JWT
 		String teamName = jwt.getJWTClaimsSet().getStringClaim(TEAM_NAME_ATTR)
 		if (!teamName) {
 			log.debug("JWT is invalid. It has no claim "+TEAM_NAME_ATTR)
@@ -81,6 +81,7 @@ class LiquidoTokenValidator implements TokenValidator {
 
 		// lookup team in DB
 		Team team = Team.findByName(teamName)
+		//TODO: cache team (with time to live)
 		if (!team) {
 			log.debug("Team '"+teamName+"' not found. => Unauthorized")
 			return Flowable.empty()
@@ -99,8 +100,10 @@ class LiquidoTokenValidator implements TokenValidator {
 		attributes[TEAM_ATTRIBUTE]    = team
 		attributes[CURRENT_USER_ATTR] = user
 
-		//TODO: load user's roles from DB  _OR_  add role admin if given in JWT
-		Collection<String> roles = [LIQUIDO_ROLE_USER, LIQUIDO_ROLE_ADMIN]															// Groovy I like! :-) Easily create lists
+		// Set roles for UserDetails.
+		// SECURITY: The entry in mongoDB decides if a user is an admin!
+		Collection<String> roles = [LIQUIDO_ROLE_USER]											// Groovy I like! :-) Easily create lists
+		if (user.isAdmin) roles.push(LIQUIDO_ROLE_ADMIN)
 
 		UserDetails userDetails = new UserDetails(email, roles, attributes)
 		Authentication auth = new AuthenticationUserDetailsAdapter(userDetails, TokenConfiguration.DEFAULT_ROLES_NAME, TokenConfiguration.DEFAULT_NAME_KEY)

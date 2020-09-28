@@ -2,22 +2,31 @@ package org.doogie.teams
 
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
+import io.micronaut.validation.Validated
 
+import javax.validation.Valid
 import javax.validation.constraints.NotBlank
-import javax.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull
+import javax.validation.constraints.Size;
 
+/**
+ * A Team in LIQUIDO is the topmost entity.
+ * Each team consists of a list of members, which is embedded in the MongoDB document.
+ * With the inviteCode further users can be invited to the team.
+ */
 @Introspected
 @Entity
+@Validated
 class Team {
 
 	@NotBlank
+	@Size(min = 5, message = "Team.name must have at least 5 characters")
 	String name
 
 	/** Keep members as "embedded documents" in MongoDB Teams collection */
 	List<User> members = new ArrayList<>()
 	static embedded = ['members']
-
-	//the SQL way would be to design a one-to-many relation:  static hasMany = [members:User]
+	//the relation-db way would be to design a one-to-many relation:  static hasMany = [members:User]
 
 	@NotBlank
 	String inviteCode
@@ -25,9 +34,9 @@ class Team {
 	Team() { }
 
 	/** Constructor for a Team. Will automatically generate an inviteCode */
-	Team(@NotNull String name, @NotNull String adminName, @NotNull String adminEmail) {
+	Team(@NotBlank String name, @NotBlank String adminName, @NotBlank String adminEmail) {
 		this.name = name
-		this.members.push(new User(adminName, adminEmail))
+		this.members.push(User.asAdmin(adminName, adminEmail))
 		this.inviteCode = name.md5().substring(0,8).toUpperCase()
 	}
 

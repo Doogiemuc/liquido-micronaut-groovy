@@ -27,17 +27,9 @@ class NegativeTests extends Specification {
 	@AutoCleanup
 	EmbeddedServer embeddedServer = ApplicationContext.run(EmbeddedServer)
 
-	//MAYBE: Declarative client (via simple interface) https://piotrminkowski.com/2019/11/12/micronaut-tutorial-reactive/
-
 	@Shared
 	@AutoCleanup
 	BlockingHttpClient client = HttpClient.create(embeddedServer.URL).toBlocking()
-
-	/* setup embedded mongoDB server => outdated, we are now testing against a locally installed mongoDB
-	@Shared
-	@AutoCleanup
-	MongoDatastore datastore = new MongoDatastore(Team.class)
-	*/
 
 
 	def setupSpec() {
@@ -56,35 +48,32 @@ class NegativeTests extends Specification {
 
 	void "devLogin"() {
 		given:
-		this.now = System.currentTimeMillis() % 10000;
 		this.teamName = "Negative Team "+now
 		this.adminEmail = "admin_negative"+now+"@liquido.me"
 		this.userEmail  = "negative_user"+now+"@liquido.me"
 
 		when: "GET JWT for user"
-
-		URI uri = UriBuilder.of("/devLogin").queryParam("email", userEmail).queryParam("teamName", teamName).build()
-		Map res1 = client.retrieve(HttpRequest.GET(uri), Map.class)
+		URI uri1 = UriBuilder.of("/devLogin").queryParam("email", userEmail).queryParam("teamName", teamName).build()
+		Map res1 = client.retrieve(HttpRequest.GET(uri1), Map.class)
 		this.userJwt = res1.get('jwt')
 		then:
 		this.userJwt
 
 		when: "get JWT for admin"
-		Map res2 = client.retrieve(HttpRequest.GET("/devLogin?email="+adminEmail+"&teamName="+teamName), Map.class)
+		URI uri2 = UriBuilder.of("/devLogin").queryParam("email", adminEmail).queryParam("teamName", teamName).build()
+		Map res2 = client.retrieve(HttpRequest.GET(uri2), Map.class)
 		this.adminJwt = res2.get('jwt')
 		then:
 		this.adminJwt
 
 	}
 
-
 	void "create Team should return 400 when teamName is missing"() {
 		given:
-		long now = System.currentTimeMillis() % 10000;
 		JsonBuilder newTeamJson = new JsonBuilder()
 		newTeamJson(
 				//teamName: "Teamname_"+now,    // <== missing teamname
-				adminName: "Amind Name_"+now,
+				adminName: "Admin Name_"+now,
 				adminEmail: "admin" + now + "@liquido.me"
 		)
 
@@ -96,9 +85,26 @@ class NegativeTests extends Specification {
 		e.status.code == 400
 	}
 
+	void "create Team should return 400 when teamName is too short"() {
+		given:
+		def newTeamJson = [
+			teamName: "1",    // <== too short teamname
+			adminName: "Admin Name_"+now,
+			adminEmail: "admin" + now + "@liquido.me"
+		]
+
+		when:
+		HttpResponse res = client.exchange(HttpRequest.POST('/team', newTeamJson), String.class)
+
+		then:
+		HttpClientResponseException e = thrown(HttpClientResponseException)
+		e.status.code == 400
+	}
+
+
+
 	void "join Team - with invalid inviteCode should return 400"() {
 		given:
-		long now = System.currentTimeMillis() % 10000;
 		JsonBuilder joinTeamRequest = new JsonBuilder()
 		joinTeamRequest(
 				inviteCode: "WRONG_INVITE_CODE",

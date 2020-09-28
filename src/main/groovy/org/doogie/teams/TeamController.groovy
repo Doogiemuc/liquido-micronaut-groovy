@@ -10,10 +10,12 @@ import io.micronaut.security.authentication.Authentication
 import io.micronaut.security.rules.SecurityRule
 import io.micronaut.security.token.jwt.generator.JwtTokenGenerator
 import io.micronaut.validation.Validated
+import io.micronaut.validation.validator.Validator
 import org.doogie.security.LiquidoTokenValidator
 import org.springframework.context.annotation.Profile
 
 import javax.inject.Inject
+import javax.validation.ConstraintViolation
 import javax.validation.Valid
 
 @Validated
@@ -24,11 +26,7 @@ class TeamController {
 	@Get("/")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	index() {
-		return '''{ 
-			"msg": "LIQUIDO Mobile REST API",
-			"version": "0.1.0",
-			"status": "ok"
-		}'''
+		return '{ "msg": "LIQUIDO Mobile REST API", "version": "0.1.0", "status": "ok" }'
 	}
 
 	@Inject
@@ -38,10 +36,12 @@ class TeamController {
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	@Profile("test")
 	HttpResponse devLogin(@QueryValue String email, @QueryValue String teamName) {
+		log.debug "TEST: devLogin for "+email + " in team " + teamName
 		String token = tokenGenerator.generateToken("sub": email, "teamName": teamName).orElseThrow(() -> new HttpServerException("cannot generate JWT in devLogin"))
 		return HttpResponse.ok([jwt: token])
 	}
 
+	@Inject Validator validator
 
 	/**
 	 * Create a new team.
@@ -52,9 +52,19 @@ class TeamController {
 	@Post("/team")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	HttpResponse createTeam(@Body @Valid CreateTeamRequest req) {
-		Team newTeam = new Team(req.teamName, req.adminName, req.adminEmail)
-		newTeam.save(flush: true)
+		Team newTeam = new @Valid Team(req.teamName, req.adminName, req.adminEmail)
 
+		// for some reason we must manually run validation. But this is actually nice, because it gives us the opportunity to return a nicely formatted error message
+		def constraintViolations = validator.validate(newTeam)
+		if (constraintViolations.size() > 0) {
+			def messages = constraintViolations.collect {it.getMessage() }
+			return HttpResponse.badRequest([
+				err: "Invalid create team request",
+				details: messages
+			])
+		}
+
+		newTeam.save(flush: true)
 		log.info("New team created: "+newTeam.name)
 
 		// Generate a signed JWT and return it with the team in the response. A JWT MUST contain a "sub" claim!

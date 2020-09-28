@@ -47,9 +47,6 @@ dependencies {
     //testImplementation('org.grails.plugins:mongodb:7.0.0')
     testImplementation("org.grails:grails-datastore-gorm-mongodb:7.0.0.RELEASE")
 
-    //testCompile platform("org.spockframework:spock-bom:2.0-M3-groovy-2.5")
-    //testCompile "org.spockframework:spock-core"
-
     //do not need integrated MongoDB testImplementation("de.flapdoodle.embed:de.flapdoodle.embed.mongo:2.0.1")
 }
 

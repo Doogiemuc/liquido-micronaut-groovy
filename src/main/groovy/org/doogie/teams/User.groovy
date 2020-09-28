@@ -37,6 +37,12 @@ class User {
 		this.email = email
 	}
 
+	static User asAdmin(String name, String email) {
+		User admin = new User(name, email)
+		admin.setIsAdmin(true)
+		return admin
+	}
+
 	@Override
 	String toString() {
 		return '{"name":"' + name + '","email":"'+email+'"}'
