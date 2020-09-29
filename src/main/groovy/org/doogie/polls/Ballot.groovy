@@ -17,6 +17,9 @@ class Ballot {
 	ObjectId id
 	@NotBlank String right2Vote
 	@NotNull  List<Proposal> voteOrder
-	Ballot() { }
 
+	Ballot(String right2Vote, List<Proposal> voteOrder) {
+		this.right2Vote = right2Vote
+		this.voteOrder = voteOrder
+	}
 }

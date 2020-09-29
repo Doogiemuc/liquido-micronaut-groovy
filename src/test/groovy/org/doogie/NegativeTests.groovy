@@ -120,7 +120,8 @@ class NegativeTests extends Specification {
 		e.status.code == 400
 	}
 
-	// TODO: create poll with too short title should fail!   NEEDS FIX!
+	//TODO: create poll with too short title should fail!   NEEDS FIX!
 
+	//TODO: start voting phase when there is only one proposal => fail
 
 }

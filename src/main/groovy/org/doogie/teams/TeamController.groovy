@@ -69,13 +69,11 @@ class TeamController {
 
 		// Generate a signed JWT and return it with the team in the response. A JWT MUST contain a "sub" claim!
 		Optional tokenOpt = tokenGenerator.generateToken("sub": req.adminEmail, "teamName": newTeam.name, "roles": ["ROLE_FROM_CUSTOM_JWT"])
-
-		def builder = new JsonBuilder()
-		def result = builder {
-			msg "New team created successfully"
-			team(name: newTeam.name, inviteCode: newTeam.inviteCode)
-			jwt tokenOpt.get()
-		}
+		def result = [
+			msg: "New team created successfully",
+			team: newTeam,
+			jwt: tokenOpt.get()
+		]
 		return HttpResponse.ok(result)
 	}
 

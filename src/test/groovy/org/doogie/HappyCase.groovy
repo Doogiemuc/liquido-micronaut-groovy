@@ -7,10 +7,12 @@ import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
+import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
 import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
+import org.doogie.polls.Ballot
 import org.doogie.polls.Poll
 import org.doogie.polls.Proposal
 import org.doogie.teams.Team
@@ -84,7 +86,9 @@ class HappyCase extends Specification {
 		log.info ""
 	}
 
+	@Shared
 	long now = System.currentTimeMillis() % 10000;
+
 	static String teamName
 	static String inviteCode
 	static String adminJwt
@@ -177,29 +181,57 @@ class HappyCase extends Specification {
 		res2.status.code == 200
 	}
 
-	void "Add proposal to poll and retrieve it back"() {
+	void "Add proposals to poll and retrieve them back"() {
 		assert userJwt : "Need JWT to add proposal"
 		assert poll : "Need poll to add proposal"
 
-		given:
-		def newProposal = [
-			title: "Happy Proposal "+now,
-			description: "Proposal created by Happy Case in Team "+teamName
-		]
-
-		when:
+		when: "adding a proposal"
 		Proposal prop = client.retrieve(HttpRequest.POST("/polls/${poll.id}/proposals", newProposal).bearerAuth(userJwt), Proposal.class)
 
-		then:
+		then: "saved proposal has an ID and its title is correct"
 		prop.id
 		prop.title == newProposal.title
 
-		when:
+		when: "Getting poll with all its proposals"
 		Poll poll = client.retrieve(HttpRequest.GET("/polls/${poll.id}").bearerAuth(userJwt), Poll.class)
 		log.info "==============", poll
 
 		then: "Proposal is now part of poll"
 		poll.proposals.find({it.title == prop.title})
+
+		where: "we add two proposals"
+		newProposal << [
+				[title: "Happy Proposal 1_"+now, description: "Proposal 1 created by Happy Case in Team "+teamName],
+				[title: "Happy Proposal 2_"+now, description: "Proposal 2 created by Happy Case in Team "+teamName],
+		]
+	}
+
+	void "Start voting phase (admin)"() {
+		assert adminJwt : "Need JWT to start voting phase"
+		assert poll : "Need poll to start voting phase"
+		assert poll.status == Poll.Status.ELABORATION: "Poll must be in status ELABORATION"
+
+		when: "admin starts voting phase"
+		poll = client.retrieve(HttpRequest.PUT("/polls/${poll.id}/startVoting", null).bearerAuth(adminJwt), Poll.class)
+
+		then: "returned poll has status VOTING"
+		poll.status == Poll.Status.VOTING
+	}
+
+	void "Cast vote"() {
+		assert userJwt : "Need JWT to cast vote"
+		assert poll : "Need poll to cast vote"
+		assert poll.status == Poll.Status.VOTING: "Need poll in status VOTING"
+
+		given:
+		def voteOrder = [poll.proposals.get(0), poll.proposals.get(1)]
+		Ballot ballot = new Ballot("dummyRight2Vote", voteOrder)
+
+		when: "user casts a vote"
+		HttpResponse res = client.exchange(HttpRequest.POST("/polls/${poll.id}/vote", ballot).bearerAuth(userJwt))
+
+		then: "returned ballot is accepted(202)"
+		res.status == HttpStatus.ACCEPTED
 	}
 
 
