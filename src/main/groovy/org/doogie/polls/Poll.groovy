@@ -31,7 +31,7 @@ class Poll {
 
 	// MongoDB-GORM
 	static embedded = ['proposals', 'ballots']
-	static mapping = { collection: "polls" }
+	static mapping = { collection "polls" }
 
 	Poll() { }
 

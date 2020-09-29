@@ -1,4 +1,4 @@
-package org.doogie
+ package org.doogie
 
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
@@ -57,7 +57,7 @@ class HappyCase extends Specification {
 	JsonSlurper slurper = new JsonSlurper()
 
 
-	//TODO: USe declarative HTTP client (via simple interface) https://piotrminkowski.com/2019/11/12/micronaut-tutorial-reactive/
+	//TODO: Use declarative HTTP client (via simple interface) https://piotrminkowski.com/2019/11/12/micronaut-tutorial-reactive/
 
 	/**
 	 * Connect GORM to MongoDB.
@@ -69,7 +69,9 @@ class HappyCase extends Specification {
 		log.info "=============================================================="
 
 		// see doc http://gorm.grails.org/latest/mongodb/manual/#_basic_setup
-		MongoDatastore datastore = new MongoDatastore(Team.class, Poll.class)
+		Map mongoConfig= [:]
+		mongoConfig[MongoDatastore.SETTING_DATABASE_NAME] = "HappyCaseDB"
+		MongoDatastore datastore = new MongoDatastore(mongoConfig, Team.class, Poll.class)
 		// MongoDbHost = datastore.getMongoClient().getClusterDescription().clusterSettings.hosts[0]
 		log.info "Running tests against MongoDatastore.getDefaultDatabase:() ==" + datastore.getDefaultDatabase()
 
@@ -132,7 +134,6 @@ class HappyCase extends Specification {
 		assert inviteCode : "Need invite code to join Team"
 
 		given:
-		long now = System.currentTimeMillis() % 10000;
 		JsonBuilder joinTeamRequest = new JsonBuilder()
 		joinTeamRequest(
 				inviteCode: inviteCode,
