@@ -122,6 +122,8 @@ class NegativeTests extends Specification {
 
 	//TODO: create poll with too short title should fail!   NEEDS FIX!
 
+	//TODO: add proposal must not be allowed, if poll is not in status ELABORATION
+
 	//TODO: start voting phase when there is only one proposal => fail
 
 }

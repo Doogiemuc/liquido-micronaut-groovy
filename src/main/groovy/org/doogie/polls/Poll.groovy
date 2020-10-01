@@ -1,6 +1,7 @@
 package org.doogie.polls
 
 import com.fasterxml.jackson.annotation.JsonBackReference
+import com.fasterxml.jackson.annotation.JsonIgnore
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
 import org.doogie.teams.Team
@@ -26,10 +27,13 @@ class Poll {
 
 	@NotBlank @Size(min=10) String title
 	@NotNull  Status status  = Status.ELABORATION
+
 	List<Proposal> proposals = new ArrayList<>()
+
+	@JsonIgnore  // do not return Ballots to the client!
 	List<Ballot> ballots     = new ArrayList<>()
 
-	// MongoDB-GORM
+	// MongoDB-GORM: proposals and ballots are embedded documents
 	static embedded = ['proposals', 'ballots']
 	static mapping = { collection "polls" }
 

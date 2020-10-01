@@ -1,10 +1,12 @@
 package org.doogie.polls
 
+import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.*
 import io.micronaut.security.annotation.Secured
 import io.micronaut.security.authentication.Authentication
+import io.micronaut.security.rules.SecurityRule
 import io.micronaut.security.utils.SecurityService
 import io.micronaut.validation.Validated
 import org.bson.types.ObjectId
@@ -14,6 +16,8 @@ import org.doogie.teams.User
 
 import javax.inject.Inject
 import javax.validation.Valid
+import javax.validation.constraints.NotNull
+import java.time.LocalDateTime
 
 @Validated
 @Controller
@@ -104,10 +108,59 @@ class PollController {
 	HttpResponse createProposal(@PathVariable("pollId") Long pollId, @Body Map<String, String> createProposalReq) {
 		Poll poll = Poll.findById(pollId)
 		if (!poll) return HttpResponse.notFound([msg: "Cannot add Proposal. Cannot find poll.id="+pollId])
+		if (!poll.status == Poll.Status.ELABORATION) return HttpResponse.badRequest([msg: "Cannot add Proposal. Poll must be in status ELABORATION but poll.status = "+poll.status])
 		Proposal proposal = new Proposal(createProposalReq.get("title"), createProposalReq.get("description"), getCurrentUser().id)
 		poll.proposals.push(proposal)
 		poll.save(flush: true)
 		return HttpResponse.created(proposal)
+	}
+
+	@Put("/polls/{pollId}/startVoting")
+	@Secured([LiquidoTokenValidator.LIQUIDO_ROLE_ADMIN])
+	HttpResponse startVotingPhase(@PathVariable("pollId") Long pollId) {
+		Poll poll = Poll.findById(pollId)
+		if (!poll) return HttpResponse.notFound([msg: "Cannot start voting phase. Cannot find poll.id="+pollId])
+		if (!poll.status == Poll.Status.VOTING) return HttpResponse.ok([msg: "Poll was already in status VOTING"])   // PUT is idempotent. If called multiple times, this is ok. Poll will stay in status voting
+		if (!poll.status == Poll.Status.ELABORATION) return HttpResponse.badRequest([msg: "Cannot start voting phase. Poll must be in status ELABORATION but poll.status = "+poll.status])
+		if (poll.proposals.size() < 2) return HttpResponse.badRequest([msg: "Cannot start voting phase. Poll must have at least two proposals."])
+		poll.setStatus(Poll.Status.VOTING)
+		poll.save(flush: true)
+		return HttpResponse.created(poll)
+	}
+
+	@Post("/polls/{pollId}/vote")
+	@Secured(SecurityRule.IS_ANONYMOUS)   			// Casting a vote is anonymous !!!
+	HttpResponse castVote(@PathVariable("pollId") Long pollId, @Body @NotNull Map<String, Object> castVoteReq) {
+		// Sanity checks: Simple and obvious ones first, before hitting the DB!
+		String voterToken = castVoteReq.get("voterToken")
+		List<String> voteOrder  = castVoteReq.get("voteOrder")
+		if (!voterToken || voterToken.length() < 10) return HttpResponse.badRequest([err: "Cannot cast vote. Need valid voterToken!"])
+		if (!castVoteReq.get("voteOrder")) return HttpResponse.badRequest([err: "Cannot cast vote. Need voteOrder (as Array of IDs) in request!"])
+
+		// Check if voterToken hashes to a known right2Vote
+		String hashedVoterToken = voterToken.md5()
+		Right2Vote right2Vote = Right2Vote.findByHashedVoterToken(hashedVoterToken)
+		if (!right2Vote) return HttpResponse.badRequest([err: "Cannot cast vote. VoterToken is unknown."])
+		if (LocalDateTime.now().isAfter(right2Vote.expiresAt)) return HttpResponse.badRequest([err: "Cannot cast vote. VoterToken is expired."])
+
+		// Load poll from DB
+		Poll poll = Poll.findById(pollId)
+		if (!poll) return HttpResponse.notFound([err: "Cannot cast vote. Cannot find poll.id="+pollId])
+		if (poll.status != Poll.Status.VOTING) return HttpResponse.badRequest([err: "Cannot cast vote. Poll must be in status VOTING but poll.status = "+poll.status])
+
+		// update existing Ballot or add new Ballot
+		Ballot ballot = poll.ballots.find {it.right2Vote == right2Vote }
+		if (ballot) {													// update existing Ballot
+			ballot.voteOrder = voteOrder
+			log.info("Cast Vote in poll(id=$poll.id): voteOrder=$voteOrder (update Ballot)")
+		} else {															// add new Ballot
+			ballot = new Ballot(right2Vote, voteOrder)
+			poll.ballots.push(ballot)
+			log.info("Cast Vote in poll(id=$poll.id): voteOrder=$voteOrder")
+		}
+
+		poll.save(flush: true)
+		return HttpResponse.created(ballot)   // Do NOT return the poll with all ballots!
 	}
 
 }

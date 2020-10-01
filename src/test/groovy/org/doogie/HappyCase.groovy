@@ -12,8 +12,7 @@ import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
 import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
-import org.doogie.polls.Ballot
-import org.doogie.polls.Poll
+ import org.doogie.polls.Poll
 import org.doogie.polls.Proposal
 import org.doogie.teams.Team
 import org.grails.datastore.mapping.mongo.MongoDatastore
@@ -47,6 +46,9 @@ class HappyCase extends Specification {
 	HttpClient rxClient
 	*/
 
+	/** We can simply inject the MongoDatastore that has already been initialized by micronaut-mongo-gorm */
+	@Inject
+	MongoDatastore mongoDatastore
 
 	@Value('${mongodb.uri}')
 	String mongoDbUri
@@ -54,6 +56,7 @@ class HappyCase extends Specification {
 	@Inject
 	ApplicationContext ctx
 
+	@Shared
 	JsonSlurper slurper = new JsonSlurper()
 
 
@@ -64,30 +67,13 @@ class HappyCase extends Specification {
 	 * Make sure that there is at least one Team that we can test against.
 	 */
 	def setupSpec() {
-		log.info "=============================================================="
-		log.info "====================== RUNNING HAPPY CASE TEST ==============="
-		log.info "=============================================================="
-
-		// see doc http://gorm.grails.org/latest/mongodb/manual/#_basic_setup
-		Map mongoConfig= [:]
-		mongoConfig[MongoDatastore.SETTING_DATABASE_NAME] = "HappyCaseDB"
-		MongoDatastore datastore = new MongoDatastore(mongoConfig, Team.class, Poll.class)
-		// MongoDbHost = datastore.getMongoClient().getClusterDescription().clusterSettings.hosts[0]
-		log.info "Running tests against MongoDatastore.getDefaultDatabase:() ==" + datastore.getDefaultDatabase()
-
-		for (String dbName : datastore.getMongoClient().listDatabaseNames()) {
-			log.info "dbName: " + dbName
-		}
-		long teamCount = Team.count()
-		long pollCount = Poll.count()
-		log.info "Got $teamCount Teams and $pollCount Polls in the DB"
-
-		def teams = Team.list(offset: 0, max:1)
-		def team = Team.find()
-
-		log.info ""
+		log.info "=================================================================="
+		log.info "================= RUNNING HAPPY CASE TESTs ======================="
+		log.info "=================================================================="
+		// Keep in mind that injected values are not yet available in here!
 	}
 
+	/* Static and shared values that can be accessed in every testcase */
 	@Shared
 	long now = System.currentTimeMillis() % 10000;
 
@@ -97,11 +83,20 @@ class HappyCase extends Specification {
 	static String userJwt
 	static Team team
 	static Poll poll
+	static String voterToken1   // voter token of user1
 
 
-	void "LIQUIDO backend API is available"() {
-		given:
+	void "LIQUIDO backend API and mongoDB are available"() {
+		// see doc http://gorm.grails.org/latest/mongodb/manual/#_basic_setup
+		log.info "Running tests against MongoDatastore.getDefaultDatabase() == " + mongoDatastore.getDefaultDatabase()
 		log.info("mongodb.uri = "+this.mongoDbUri)
+		String mongoDbNames = mongoDatastore.getMongoClient().listDatabaseNames().join(", ")
+		log.info("Mongo Databases: "+mongoDbNames)
+
+		long teamCount = Team.count()
+		long pollCount = Poll.count()
+		log.info "Got $teamCount Teams and $pollCount Polls in the default DB"
+		log.info "=================================================================="
 
 		when:
 		HttpResponse res = client.exchange("/")
@@ -126,6 +121,7 @@ class HappyCase extends Specification {
 		then:
 		res.status.code == 200
 		json.team.name == teamName
+		json.voterToken						// admin also has a voterToken. We'll use the one returned to the user in the next test step.
 		(this.adminJwt = json.jwt) != null
 		(this.inviteCode = json.team.inviteCode) != null
 	}
@@ -142,13 +138,15 @@ class HappyCase extends Specification {
 		)
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest.toString()), Map.class)
-		this.userJwt = res.body.get().get("jwt")
+		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest.toString()), String.class)
+		def json = slurper.parseText(res.body())
 
 		then: "joinTeam returned JWT and info about team"
 		res.status.code == 200
-		this.userJwt
-		res.body.get().get("team").get("name") == teamName
+		(this.userJwt = json.jwt) != null
+		(this.voterToken1 = json.voterToken) != null
+		json.team.name == teamName
+
 	}
 
 	void "Get info about own team"() {
@@ -160,6 +158,19 @@ class HappyCase extends Specification {
 		then:
 		this.team.name == teamName
 	}
+
+	/*
+	void "Get own user with own voterToken"() {
+		assert userJwt : "Need JWT to get voterToken"
+
+		when:
+		voterToken1 = client.retrieve(HttpRequest.GET("/my/voterToken").bearerAuth(userJwt), String.class)
+
+		then: "user received a voterToken"
+		voterToken1.length() > 10
+	}
+	*/
+
 
 	void "Create new poll and then get polls of team"() {
 		assert adminJwt : "Need JWT to GET polls of team"
@@ -176,7 +187,6 @@ class HappyCase extends Specification {
 
 		when:
 		HttpResponse res2 = client.exchange(HttpRequest.GET('/polls').bearerAuth(adminJwt), String.class)
-		log.info "========= polls of team \n" + res2.body()
 
 		then:
 		res2.status.code == 200
@@ -194,8 +204,7 @@ class HappyCase extends Specification {
 		prop.title == newProposal.title
 
 		when: "Getting poll with all its proposals"
-		Poll poll = client.retrieve(HttpRequest.GET("/polls/${poll.id}").bearerAuth(userJwt), Poll.class)
-		log.info "==============", poll
+		poll = client.retrieve(HttpRequest.GET("/polls/${poll.id}").bearerAuth(userJwt), Poll.class)
 
 		then: "Proposal is now part of poll"
 		poll.proposals.find({it.title == prop.title})
@@ -211,9 +220,10 @@ class HappyCase extends Specification {
 		assert adminJwt : "Need JWT to start voting phase"
 		assert poll : "Need poll to start voting phase"
 		assert poll.status == Poll.Status.ELABORATION: "Poll must be in status ELABORATION"
+		assert poll.proposals.size() > 1 : "Poll must have at least two proposals"
 
 		when: "admin starts voting phase"
-		poll = client.retrieve(HttpRequest.PUT("/polls/${poll.id}/startVoting", null).bearerAuth(adminJwt), Poll.class)
+		poll = client.retrieve(HttpRequest.PUT("/polls/${poll.id}/startVoting", "").bearerAuth(adminJwt), Poll.class)
 
 		then: "returned poll has status VOTING"
 		poll.status == Poll.Status.VOTING
@@ -225,24 +235,46 @@ class HappyCase extends Specification {
 		assert poll.status == Poll.Status.VOTING: "Need poll in status VOTING"
 
 		given:
-		def voteOrder = [poll.proposals.get(0), poll.proposals.get(1)]
-		Ballot ballot = new Ballot("dummyRight2Vote", voteOrder)
+		// voteOrder must be passed as list of Strings: each one is a HEX representation of a Mongo ObjectId
+		def castVoteRequest = [
+			voterToken: voterToken1,
+			voteOrder: [poll.proposals.get(0).id.toHexString(), poll.proposals.get(1).id.toHexString()]
+		]
 
 		when: "user casts a vote"
-		HttpResponse res = client.exchange(HttpRequest.POST("/polls/${poll.id}/vote", ballot).bearerAuth(userJwt))
+		HttpResponse res = client.exchange(HttpRequest.POST("/polls/${poll.id}/vote", castVoteRequest).bearerAuth(userJwt))
 
-		then: "returned ballot is accepted(202)"
-		res.status == HttpStatus.ACCEPTED
+		then: "returned ballot is created(201)"
+		res.status == HttpStatus.CREATED
 	}
 
+	void "Update own ballot"() {
+		assert userJwt : "Need JWT to cast vote"
+		assert poll : "Need poll to cast vote"
+		assert poll.status == Poll.Status.VOTING: "Need poll in status VOTING"
 
+		given:
+		// different request than above. Vote only for one proposal here
+		def castVoteRequest = [
+			voterToken: voterToken1,
+			voteOrder: [poll.proposals.get(0).id.toHexString()]
+		]
+
+		when: "user updates his ballot"
+		HttpResponse res = client.exchange(HttpRequest.POST("/polls/${poll.id}/vote", castVoteRequest).bearerAuth(userJwt))
+
+		then: "returned ballot is accepted(202)"
+		res.status == HttpStatus.CREATED
+	}
 
 	/**
 	 * Make test repeatable and cleanup after themselves
+	 * (This cannot be done in a cleanupSpec() method, because the mongoDatastore
+	 * is already closed there.)
 	 */
-	def cleanupSpec() {
+	void "Cleanup DB"() {
 		log.info("======================== cleanup =====================")
-		Team teamUnderTest = Team.findByName(teamName)
+ 		Team teamUnderTest = Team.findByName(teamName)
 		if (teamUnderTest != null) {
 			log.debug("Deleting team that was created by HappyCase test: "+teamName)
 			teamUnderTest.delete(flush: true)

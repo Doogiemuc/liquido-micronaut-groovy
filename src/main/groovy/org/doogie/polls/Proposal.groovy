@@ -1,5 +1,6 @@
 package org.doogie.polls
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
 import org.bson.types.ObjectId

@@ -4,7 +4,6 @@ import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
 import org.bson.types.ObjectId
 
-import javax.validation.constraints.NotBlank
 import javax.validation.constraints.NotNull
 
 /**
@@ -15,10 +14,13 @@ import javax.validation.constraints.NotNull
 @Entity
 class Ballot {
 	ObjectId id
-	@NotBlank String right2Vote
-	@NotNull  List<Proposal> voteOrder
+	@NotNull Right2Vote right2Vote
+	@NotNull List<String> voteOrder
 
-	Ballot(String right2Vote, List<Proposal> voteOrder) {
+	Ballot() { }
+
+	Ballot(Right2Vote right2Vote, List<String> voteOrder) {
+		this.id = new ObjectId()
 		this.right2Vote = right2Vote
 		this.voteOrder = voteOrder
 	}
