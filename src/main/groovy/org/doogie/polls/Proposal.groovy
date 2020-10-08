@@ -1,6 +1,6 @@
 package org.doogie.polls
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.annotation.JsonIgnore
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
 import org.bson.types.ObjectId
@@ -17,12 +17,13 @@ import javax.validation.constraints.Size
 @Entity
 class Proposal {
 
-	//TODO: serialize bson ObjectIds to String (and not to JSON)
 	ObjectId id
 
-	@NotBlank	@Size(min=10) String title             //TODO: @NonNull  mongodb
+	@NotBlank	@Size(min=10) String title
 	@NotBlank @Size(min=10) String description
 	@NotNull  ObjectId createdById
+
+	@JsonIgnore
 	List<UUID> supporters = new ArrayList<>()
 
 	Proposal() { }

@@ -1,27 +1,30 @@
-package org.doogie
+ package org.doogie
 
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
+import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
-import io.micronaut.http.client.annotation.Client
-import io.micronaut.runtime.server.EmbeddedServer
+ import io.micronaut.http.client.annotation.Client
+ import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
-import org.doogie.polls.Poll
+ import org.doogie.polls.Poll
 import org.doogie.polls.Proposal
 import org.doogie.teams.Team
+import org.grails.datastore.mapping.mongo.MongoDatastore
+import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Stepwise
 
 import javax.inject.Inject
 
-@MicronautTest(application = org.doogie.Application.class, packages = "org.doogie" /* environments = ["test", "test-happy-case"] */)
+@MicronautTest  //(application = org.doogie.Application.class, packages = "org.doogie" /* environments = ["test", "test-happy-case"] */)
 @Stepwise
 @Slf4j
 class HappyCase extends Specification {
@@ -84,12 +87,6 @@ class HappyCase extends Specification {
 		// see doc http://gorm.grails.org/latest/mongodb/manual/#_basic_setup
 		log.info "against backend at "+embeddedServer.URL
 		log.info("mongodb.uri = "+this.mongoDbUri)
-		/*
-		log.info "Running tests against MongoDatastore.getDefaultDatabase() == " + mongoDatastore.getDefaultDatabase()
-		String mongoDbNames = mongoDatastore.getMongoClient().listDatabaseNames().join(", ")
-		log.info("Mongo Databases: "+mongoDbNames)
-		 */
-
 		long teamCount = Team.count()
 		long pollCount = Poll.count()
 		log.info "Got $teamCount Teams and $pollCount Polls in the DB"
@@ -127,15 +124,14 @@ class HappyCase extends Specification {
 		assert inviteCode : "Need invite code to join Team"
 
 		given:
-		JsonBuilder joinTeamRequest = new JsonBuilder()
-		joinTeamRequest(
+		def joinTeamRequest = [
 				inviteCode: inviteCode,
 				userName: "User Name_"+now,
 				userEmail: "user" + now + "@liquido.me"
-		)
+		]
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest.toString()), String.class)
+		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest), String.class)
 		def json = slurper.parseText(res.body())
 
 		then: "joinTeam returned JWT and info about team"
@@ -268,7 +264,7 @@ class HappyCase extends Specification {
 	 * Make test repeatable and cleanup after themselves
 	 * (This cannot be done in a cleanupSpec() method, because the mongoDatastore
 	 * is already closed there.)
-
+	 */
 	void "Cleanup DB"() {
 		log.info("======================== cleanup =====================")
  		Team teamUnderTest = Team.findByName(teamName)
@@ -279,6 +275,5 @@ class HappyCase extends Specification {
 			log.error("Cannot delete teamUnderTest")
 		}
 	}
-  */
 
 }

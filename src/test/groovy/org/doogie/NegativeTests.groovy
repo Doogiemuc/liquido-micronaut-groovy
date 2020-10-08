@@ -5,7 +5,6 @@ import groovy.util.logging.Slf4j
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
-import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.annotation.Client
@@ -13,10 +12,8 @@ import io.micronaut.http.client.exceptions.HttpClientResponseException
 import io.micronaut.http.uri.UriBuilder
 import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
-import org.grails.datastore.mapping.mongo.MongoDatastore
 import spock.lang.Shared
 import spock.lang.Specification
-import spock.lang.Stepwise
 
 import javax.inject.Inject
 
@@ -47,8 +44,6 @@ class NegativeTests extends Specification {
 	@Value('${mongodb.uri}')
 	String mongoDbUri
 
-
-
 	def setupSpec() {
 		log.info "=================================================================="
 		log.info "================= RUNNING NEGATIVE TESTs   ======================="
@@ -68,6 +63,7 @@ class NegativeTests extends Specification {
 
 	void "devLogin"() {
 		log.info "against backend at "+embeddedServer.URL
+		log.info("mongodb.uri = "+this.mongoDbUri)
 		log.info "=================================================================="
 
 		given:
@@ -91,23 +87,6 @@ class NegativeTests extends Specification {
 
 	}
 
-	void "create Team should return 400 when teamName is missing"() {
-		given:
-		JsonBuilder newTeamJson = new JsonBuilder()
-		newTeamJson(
-				//teamName: "Teamname_"+now,    // <== missing teamname
-				adminName: "Admin Name_"+now,
-				adminEmail: "admin" + now + "@liquido.me"
-		)
-
-		when:
-		HttpResponse res = client.exchange(HttpRequest.POST('/team', newTeamJson.toString()), String.class)
-
-		then:
-		HttpClientResponseException e = thrown(HttpClientResponseException)
-		e.status.code == 400
-	}
-
 	void "create Team should return 400 when teamName is too short"() {
 		given:
 		def newTeamJson = [
@@ -123,6 +102,8 @@ class NegativeTests extends Specification {
 		HttpClientResponseException e = thrown(HttpClientResponseException)
 		e.status.code == 400
 	}
+
+
 
 	void "join Team - with invalid inviteCode should return 400"() {
 		given:
@@ -140,8 +121,6 @@ class NegativeTests extends Specification {
 		HttpClientResponseException e = thrown(HttpClientResponseException)
 		e.status.code == 400
 	}
-
-
 
 	//TODO: create poll with too short title should fail!   NEEDS FIX!
 

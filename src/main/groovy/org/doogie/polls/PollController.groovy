@@ -37,7 +37,7 @@ class PollController {
 		//JsonError error = new JsonError(ex.getMessage())
 		//		.link(Link.SELF, Link.of(request.getUri()))
 
-		return HttpResponse.badRequest().body(lex)			//TODO: get returned status from lex
+		return HttpResponse.badRequest().body(lex)
 	}
 	*/
 
