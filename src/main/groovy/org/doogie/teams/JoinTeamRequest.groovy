@@ -6,7 +6,7 @@ import javax.validation.constraints.NotBlank
 
 @Introspected
 class JoinTeamRequest {
-	@NotBlank	String inviteCode
+	@NotBlank String inviteCode
 	@NotBlank String userName
 	@NotBlank String userEmail
 }

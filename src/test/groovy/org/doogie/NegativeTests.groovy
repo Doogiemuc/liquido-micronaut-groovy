@@ -2,41 +2,61 @@ package org.doogie
 
 import groovy.json.JsonBuilder
 import groovy.util.logging.Slf4j
-import io.micronaut.context.ApplicationContext
+import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
+import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
+import io.micronaut.http.client.annotation.Client
 import io.micronaut.http.client.exceptions.HttpClientResponseException
 import io.micronaut.http.uri.UriBuilder
 import io.micronaut.runtime.server.EmbeddedServer
-import org.doogie.polls.Poll
-import org.doogie.teams.Team
+import io.micronaut.test.annotation.MicronautTest
 import org.grails.datastore.mapping.mongo.MongoDatastore
-import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
+import spock.lang.Stepwise
+
+import javax.inject.Inject
 
 /**
  * Negative test cases that test for expected Exceptions or expected error codes in responses.
  */
+@MicronautTest //(application = org.doogie.Application.class, packages = "org.doogie" /* environments = ["test", "test-happy-case"] */)
 @Slf4j
 class NegativeTests extends Specification {
 
-	@Shared
-	@AutoCleanup
-	EmbeddedServer embeddedServer = ApplicationContext.run(EmbeddedServer)
+	@Inject
+	EmbeddedServer embeddedServer
 
+	/** Inject the shared reactive RxHttpClient */
+	@Inject
 	@Shared
-	@AutoCleanup
-	BlockingHttpClient client = HttpClient.create(embeddedServer.URL).toBlocking()
+	@Client("/")
+	HttpClient rxClient
+
+	/** We only need a BlockingHttpClient in our tests. This field MUST be static */
+	static BlockingHttpClient client
+
+	/** We can simply inject the MongoDatastore that has already been initialized by micronaut-mongo-gorm */
+	//@Inject
+	//@AutoCleanup   BUGFIX: No autocleanup. Otherwise mongo client will be closed too soon.
+	//MongoDatastore mongoDatastore
+
+	@Value('${mongodb.uri}')
+	String mongoDbUri
+
 
 
 	def setupSpec() {
-		log.info "=========== Setting up tests "
-
+		log.info "=================================================================="
+		log.info "================= RUNNING NEGATIVE TESTs   ======================="
+		log.info "=================================================================="
+		client = rxClient.toBlocking()
 	}
 
+	@Shared
 	long now = System.currentTimeMillis() % 100000;
 	static String teamName
 	static String adminEmail
@@ -47,6 +67,9 @@ class NegativeTests extends Specification {
 
 
 	void "devLogin"() {
+		log.info "against backend at "+embeddedServer.URL
+		log.info "=================================================================="
+
 		given:
 		this.teamName = "Negative Team "+now
 		this.adminEmail = "admin_negative"+now+"@liquido.me"
@@ -101,8 +124,6 @@ class NegativeTests extends Specification {
 		e.status.code == 400
 	}
 
-
-
 	void "join Team - with invalid inviteCode should return 400"() {
 		given:
 		JsonBuilder joinTeamRequest = new JsonBuilder()
@@ -119,6 +140,8 @@ class NegativeTests extends Specification {
 		HttpClientResponseException e = thrown(HttpClientResponseException)
 		e.status.code == 400
 	}
+
+
 
 	//TODO: create poll with too short title should fail!   NEEDS FIX!
 

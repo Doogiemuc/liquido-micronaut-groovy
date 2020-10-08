@@ -1,60 +1,54 @@
- package org.doogie
+package org.doogie
 
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
-import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
+import io.micronaut.http.client.annotation.Client
 import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
- import org.doogie.polls.Poll
+import org.doogie.polls.Poll
 import org.doogie.polls.Proposal
 import org.doogie.teams.Team
-import org.grails.datastore.mapping.mongo.MongoDatastore
-import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Stepwise
 
 import javax.inject.Inject
 
-@MicronautTest  //(application = org.doogie.Application.class, packages = "org.doogie" /* environments = ["test", "test-happy-case"] */)
+@MicronautTest(application = org.doogie.Application.class, packages = "org.doogie" /* environments = ["test", "test-happy-case"] */)
 @Stepwise
 @Slf4j
 class HappyCase extends Specification {
 
-	@Shared
-	@AutoCleanup
-	EmbeddedServer embeddedServer = ApplicationContext.run(EmbeddedServer)
+//	@Shared
+//	@AutoCleanup
+//	EmbeddedServer embeddedServer = ApplicationContext.run(EmbeddedServer)
 
-	@Shared
-	@AutoCleanup
-	BlockingHttpClient client = HttpClient.create(embeddedServer.URL).toBlocking()
-
-	/*  DIRECTLY injecting doesn't seem to work.  So we have to create this stuff ourselfe
 	@Inject
-	@AutoCleanup
 	EmbeddedServer embeddedServer
 
+	/** Inject the shared reactive RxHttpClient */
 	@Inject
+	@Shared
 	@Client("/")
 	HttpClient rxClient
-	*/
+
+	/** We only need a BlockingHttpClient in our tests. This field MUST be static */
+	static BlockingHttpClient client
 
 	/** We can simply inject the MongoDatastore that has already been initialized by micronaut-mongo-gorm */
-	@Inject
-	MongoDatastore mongoDatastore
+	//@Inject
+	//@AutoCleanup   BUGFIX: No autocleanup. Otherwise mongo client will be closed too soon.
+	//MongoDatastore mongoDatastore
 
 	@Value('${mongodb.uri}')
 	String mongoDbUri
-
-	@Inject
-	ApplicationContext ctx
 
 	@Shared
 	JsonSlurper slurper = new JsonSlurper()
@@ -70,7 +64,7 @@ class HappyCase extends Specification {
 		log.info "=================================================================="
 		log.info "================= RUNNING HAPPY CASE TESTs ======================="
 		log.info "=================================================================="
-		// Keep in mind that injected values are not yet available in here!
+		client = rxClient.toBlocking()
 	}
 
 	/* Static and shared values that can be accessed in every testcase */
@@ -88,14 +82,17 @@ class HappyCase extends Specification {
 
 	void "LIQUIDO backend API and mongoDB are available"() {
 		// see doc http://gorm.grails.org/latest/mongodb/manual/#_basic_setup
-		log.info "Running tests against MongoDatastore.getDefaultDatabase() == " + mongoDatastore.getDefaultDatabase()
+		log.info "against backend at "+embeddedServer.URL
 		log.info("mongodb.uri = "+this.mongoDbUri)
+		/*
+		log.info "Running tests against MongoDatastore.getDefaultDatabase() == " + mongoDatastore.getDefaultDatabase()
 		String mongoDbNames = mongoDatastore.getMongoClient().listDatabaseNames().join(", ")
 		log.info("Mongo Databases: "+mongoDbNames)
+		 */
 
 		long teamCount = Team.count()
 		long pollCount = Poll.count()
-		log.info "Got $teamCount Teams and $pollCount Polls in the default DB"
+		log.info "Got $teamCount Teams and $pollCount Polls in the DB"
 		log.info "=================================================================="
 
 		when:
@@ -126,7 +123,7 @@ class HappyCase extends Specification {
 		(this.inviteCode = json.team.inviteCode) != null
 	}
 
-	void "join Team"() {
+	void "Join Team"() {
 		assert inviteCode : "Need invite code to join Team"
 
 		given:
@@ -271,7 +268,7 @@ class HappyCase extends Specification {
 	 * Make test repeatable and cleanup after themselves
 	 * (This cannot be done in a cleanupSpec() method, because the mongoDatastore
 	 * is already closed there.)
-	 */
+
 	void "Cleanup DB"() {
 		log.info("======================== cleanup =====================")
  		Team teamUnderTest = Team.findByName(teamName)
@@ -282,5 +279,6 @@ class HappyCase extends Specification {
 			log.error("Cannot delete teamUnderTest")
 		}
 	}
+  */
 
 }

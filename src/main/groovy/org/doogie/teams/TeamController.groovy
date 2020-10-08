@@ -1,6 +1,6 @@
 package org.doogie.teams
 
-
+import com.mongodb.client.model.Filters
 import groovy.util.logging.Slf4j
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
@@ -18,6 +18,9 @@ import org.springframework.context.annotation.Profile
 
 import javax.inject.Inject
 import javax.validation.Valid
+
+import com.mongodb.client.FindIterable
+import static com.mongodb.client.model.Filters.*
 
 @Validated
 @Controller
@@ -62,6 +65,39 @@ class TeamController {
 		return voterToken
 	}
 
+	/*
+	def teamValidators = [
+			StringValidator("name").minSize(4).msg("Team.name must be at least 5 characters"),
+			StringValidator("members[0].name").minSize(4),
+			EmailValidator("members[0].email")
+	]
+
+
+
+	@Post("/team2")
+	@Secured(SecurityRule.IS_ANONYMOUS)
+	HttpResponse createTeamBson(@Body String createTeamExtJson) {
+		MongoClient mongoClient = MongoClients.create("mongodb://localhost");
+		MongoDatabase db = mongoClient.getDatabase("test-bmw")
+		MongoCollection<Document> teamsCol = db.getCollection("teams");
+		Document team
+		try {
+			team = new Document().parse(createTeamExtJson)
+		} catch (JsonParseException jpe) {
+			return HttpResponse.badRequest([err: "Cannot create team. Cannot parse ext. json", msg: jpe.getMessage()])
+		}
+
+		//TODO: validate team against a JSON schema ?
+
+		InsertOneResult insertOneResult = teamsCol.insertOne(team)
+		if (!insertOneResult.wasAcknowledged()) {
+			return HttpResponse.serverError([err: "Cannot create new team"])
+		}
+		return HttpResponse.ok([newTeamId: insertOneResult.getInsertedId().toString()])
+	}
+	*/
+
+
 	/**
 	 * Create a new team.
 	 * The response contains a JSON Web Token (JWT) which has the userEmail as 'sub' claim and also the teamName in a claim.
@@ -104,10 +140,12 @@ class TeamController {
 	@Put("/joinTeam")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	HttpResponse joinTeam(@Body @Valid JoinTeamRequest req) {
-		Team team = Team.findByInviteCode(req.inviteCode)            // GORM I LIKE :-)
+		Team team = Team.find(Filters.eq("inviteCode", req.inviteCode)).first()
+		//Team team = Team.findByInviteCode(req.inviteCode)  //  throws "Internal Server Error: state should be: open"
 		if (!team) return HttpResponse.badRequest([err:"Cannot find a team with this inviteCode!"])
 		team.members.push(new User(req.userName, req.userEmail))
 		team.save(flush: true)
+		log.info(req.userEmail+ " joined team "+team.name)
 
 		String jwt = tokenGenerator.generateToken("sub": req.userEmail, "teamName": team.name)
 			.orElseThrow(() -> new HttpServerException("cannot generate JWT"))
