@@ -1,0 +1,27 @@
+micronaut:
+  application:
+    name: liquido
+  security:
+    authentication: bearer
+    token:
+      jwt:
+        signatures:
+          secret:
+            generator:
+              secret: '"${JWT_GENERATOR_SIGNATURE_SECRET:jwtSecret_MustBeAtLeast256Bits}"'
+
+grails:
+  mongodb:
+    host: "ENTER_YOUR_MONGODB_HOST"
+    port: 27017
+    username: "ENTER_YOUR_MONGO_DB_USER"
+    password: "ENTER_PASSWORD_HERE"
+    databaseName: "MONGO_DB_DATABASE_NAME"
+
+mongodb:
+  uri: "mongodb+srv://<user>:<password>@<host>/<defaultDatabaseName>"
+
+
+liquido:
+  server:
+    voterTokenSecret: "liquidoVoterTokenSecret_forLocalDevelopment"

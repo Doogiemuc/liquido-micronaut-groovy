@@ -15,7 +15,7 @@
     </root>
 
     <logger name="org.doogie" level="TRACE"/>
-    <!-- logger name="io.micronaut.http.client" level="TRACE"/ -->
+    <!-- logger name="io.micronaut.http" level="TRACE"/ -->
     <logger name="com.mongodb" level="TRACE"/>
     <!-- logger name="io.micronaut.security" level="DEBUG"/ -->
 
