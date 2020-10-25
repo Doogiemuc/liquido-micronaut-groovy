@@ -1,6 +1,8 @@
 micronaut:
   application:
     name: liquido
+  server:
+    context-path: /liquido-api
   security:
     authentication: bearer
     token:
@@ -21,7 +23,7 @@ grails:
 mongodb:
   uri: "mongodb+srv://<user>:<password>@<host>/<defaultDatabaseName>"
 
-
 liquido:
+  inviteUrlPrefix: "http:www.liquido.me/invite/"
   server:
     voterTokenSecret: "liquidoVoterTokenSecret_forLocalDevelopment"

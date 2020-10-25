@@ -39,7 +39,7 @@ class HappyCase extends Specification {
 	/** Inject the shared reactive RxHttpClient */
 	@Inject
 	@Shared
-	@Client("/")
+	@Client('${micronaut.server.context-path}')
 	HttpClient rxClient
 
 	/** We only need a BlockingHttpClient in our tests. This field MUST be static */
@@ -49,6 +49,9 @@ class HappyCase extends Specification {
 	//@Inject
 	//@AutoCleanup   BUGFIX: No autocleanup. Otherwise mongo client will be closed too soon.
 	//MongoDatastore mongoDatastore
+
+	@Value('${micronaut.server.context-path}')
+	String apiPrefix
 
 	@Value('${mongodb.uri}')
 	String mongoDbUri
@@ -85,7 +88,7 @@ class HappyCase extends Specification {
 
 	void "LIQUIDO backend API and mongoDB are available"() {
 		// see doc http://gorm.grails.org/latest/mongodb/manual/#_basic_setup
-		log.info "against backend at "+embeddedServer.URL
+		log.info "against backend at "+embeddedServer.URL + this.apiPrefix
 		log.info("mongodb.uri = "+this.mongoDbUri)
 		long teamCount = Team.count()
 		long pollCount = Poll.count()
