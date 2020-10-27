@@ -134,7 +134,7 @@ class HappyCase extends Specification {
 		]
 
 		when:
-		HttpResponse res = client.exchange(HttpRequest.PUT('/joinTeam', joinTeamRequest), String.class)
+		HttpResponse res = client.exchange(HttpRequest.PUT('/team/join', joinTeamRequest), String.class)
 		def json = slurper.parseText(res.body())
 
 		then: "joinTeam returned JWT and info about team"

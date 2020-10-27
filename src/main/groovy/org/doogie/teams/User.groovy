@@ -16,7 +16,7 @@ import javax.validation.constraints.NotBlank
 class User {
 
 	/**
-	 * Although users are embedded in a Team, they do have a uuid.
+	 * Although users are embedded in a Team, they do have a unique id.
 	 * This is used when referencing a User for example as the creator of a proposal.
 	 */
 	ObjectId id
@@ -27,16 +27,20 @@ class User {
 	@NotBlank
 	String email;
 
+	String pictureUrl;
+
 	Boolean isAdmin = false  //MAYBE: roles  Do I need more than two roles?
 
 	User() {}
 
+	/** Create a normal (non-admin) User */
 	User(String name, String email) {
 		this.id = new ObjectId()
 		this.name = name
 		this.email = email
 	}
 
+	/** Create an admin user */
 	static User asAdmin(String name, String email) {
 		User admin = new User(name, email)
 		admin.setIsAdmin(true)

@@ -1,6 +1,6 @@
 package org.doogie.teams
 
-
+import com.mongodb.client.model.Filters
 import groovy.util.logging.Slf4j
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
@@ -18,9 +18,6 @@ import org.springframework.context.annotation.Profile
 
 import javax.inject.Inject
 import javax.validation.Valid
-
-
-import com.mongodb.client.model.Filters
 
 @Validated
 @Controller
@@ -50,6 +47,12 @@ class TeamController {
 	@Value('${liquido.server.voterTokenSecret}')
 	String voterTokenSecret
 
+	@Value('${liquido.inviteUrlPrefix}')
+	String inviteUrlPrefix
+
+	@Value('${liquido.inviteCodeLength}')
+	int inviteCodeLength
+
 	/**
 	 * Creates a voterToken and and stores it in a Right2Vote
 	 * Only the user must know his voterToken!
@@ -68,15 +71,18 @@ class TeamController {
 	/**
 	 * Create a new team.
 	 * The response contains a JSON Web Token (JWT) which has the userEmail as 'sub' claim and also the teamName in a claim.
-	 * @param req a CreateTeamRequest
-	 * @return Info about the new team and the JWT for future requests
+	 * @param req a CreateTeamRequest with teamName, adminName and adminEmail
+	 * @return Info about the new team, user's voterToken and the JWT for future requests
 	 */
 	@Post("/team")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	HttpResponse createTeam(@Body @Valid CreateTeamRequest req) {
-		Team newTeam = new @Valid Team(req.teamName, req.adminName, req.adminEmail)
+		String inviteCode = req.teamName.md5().substring(0,this.inviteCodeLength).toUpperCase()
+		Team newTeam = new @Valid Team(req.teamName, req.adminName, req.adminEmail, inviteCode)
 
-		// for some reason we must manually run validation. But this is actually nice, because it gives us the opportunity to return a nicely formatted error message
+		/*
+		//FIXME: currently this does not work
+		// for some reason we must manually run validation on newTeam. But this is actually nice, because it gives us the opportunity to return a nicely formatted error message
 		def constraintViolations = validator.validate(newTeam)
 		if (constraintViolations.size() > 0) {
 			def messages = constraintViolations.collect {it.getMessage() }
@@ -85,9 +91,7 @@ class TeamController {
 				details: messages
 			])
 		}
-
-		newTeam.save(flush: true)
-		log.info("New team created: "+newTeam.name)
+	 */
 
 		// Generate a signed JWT and return it with the team in the response. A JWT MUST contain a "sub" claim!
 		String jwt = tokenGenerator.generateToken("sub": req.adminEmail, "teamName": newTeam.name, "roles": ["ROLE_FROM_CUSTOM_JWT"])
@@ -96,15 +100,34 @@ class TeamController {
 		// Generate a LIQUIDO voterToken for the admin
 		String voterToken = createAndStoreVoterToken(req.adminEmail)
 
-		return HttpResponse.ok([
+		// Save team to DB
+		newTeam.save(flush: true)
+
+		//Implementation note
+		// The Team class is a GORM @Entity. It represents how a Team is stored in the DB.
+		// Should we return exactly THAT to the client? Serialized as JSON.
+		// Maybe no. The differences are: Do not return Team.ID   But do return inviteLink and qrCodeUrl, which is not stored.
+		// And besides: The inviteUrlPrefix cannot be @injected into an @Entity :-(
+		// So therefore we manually create a JSON response for the client, instead of simply returning the newTeam POJO.
+
+		def result = [
 			msg: "New team created successfully",
-			team: newTeam,
+			team: [
+			  name: newTeam.name,
+				admin: newTeam.getAdmin(),
+				members: newTeam.members,
+				inviteCode: newTeam.inviteCode,
+				inviteLink: inviteUrlPrefix + newTeam.inviteCode,
+				qrCodeUrl: "/img/qrcode.svg"				//TODO: generate QR code
+			],
 			jwt: jwt,
 			voterToken: voterToken
-		]  )
+		]
+		log.info("New team created: "+result)
+		return HttpResponse.ok(result)
 	}
 
-	@Put("/joinTeam")
+	@Put("/team/join")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	HttpResponse joinTeam(@Body @Valid JoinTeamRequest req) {
 		Team team = Team.find(Filters.eq("inviteCode", req.inviteCode)).first()
@@ -112,18 +135,28 @@ class TeamController {
 		if (!team) return HttpResponse.badRequest([err:"Cannot find a team with this inviteCode!"])
 		team.members.push(new User(req.userName, req.userEmail))
 		team.save(flush: true)
-		log.info(req.userEmail+ " joined team "+team.name)
 
 		String jwt = tokenGenerator.generateToken("sub": req.userEmail, "teamName": team.name)
 			.orElseThrow(() -> new HttpServerException("cannot generate JWT"))
 		String voterToken = createAndStoreVoterToken(req.userEmail)
 
-		return HttpResponse.ok([
-			msg: "Joined team",
-			team: team,
+		def result = [
+			msg: "Successfully joined team",
+			team: [
+				name: team.name,
+				admin: team.getAdmin(),
+				members: team.members
+			],
+			user: [
+				name: req.userName,
+				email: req.userEmail
+			],
 			jwt: jwt,
 			voterToken: voterToken
-		])
+		]
+
+		log.info(req.userEmail+ " joined team '" + team.name+ "':\n" + result)
+		return HttpResponse.ok(result)
 	}
 
 	//TODO: @Post("/login")  with email and OTT in req.body also for normal users. Also return user's voterToken

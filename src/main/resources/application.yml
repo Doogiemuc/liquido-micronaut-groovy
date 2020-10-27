@@ -25,5 +25,6 @@ mongodb:
 
 liquido:
   inviteUrlPrefix: "http:www.liquido.me/invite/"
+  inviteCodeLength: 8
   server:
-    voterTokenSecret: "liquidoVoterTokenSecret_forLocalDevelopment"
+    voterTokenSecret: "REPLACE_ME_WITH_YOUR_SECRET"
