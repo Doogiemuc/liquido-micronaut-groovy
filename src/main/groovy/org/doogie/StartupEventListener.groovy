@@ -9,8 +9,6 @@ import io.micronaut.runtime.event.annotation.EventListener
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// Bugfix!!!! Important!!!
-
 /**
  * Perform some sanity checks on micronaut startup
  */
@@ -27,8 +25,10 @@ class StartupEventListener {
 	@EventListener
 	public void onStartupEvent(StartupEvent event) {
 		assert !io.micronaut.core.util.StringUtils.isEmpty(voterTokenSecret) : "Need liquido.server.voterTokenSecret in application-<env>.yml"
+		//TODO: create typesafe org.doogie.liquido.LiquidoConfig with annotations
 
 		//TODO: sanity check DB ...
+		log.info("LIQUIDO backend is running")
 
 
 	}

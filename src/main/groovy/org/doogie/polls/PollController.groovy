@@ -1,18 +1,15 @@
 package org.doogie.polls
 
-import groovy.json.JsonSlurper
+
 import groovy.util.logging.Slf4j
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.*
 import io.micronaut.security.annotation.Secured
-import io.micronaut.security.authentication.Authentication
 import io.micronaut.security.rules.SecurityRule
-import io.micronaut.security.utils.SecurityService
 import io.micronaut.validation.Validated
-import org.bson.types.ObjectId
+import org.doogie.liquido.LiquidoUtils
 import org.doogie.security.LiquidoTokenValidator
 import org.doogie.teams.Team
-import org.doogie.teams.User
 
 import javax.inject.Inject
 import javax.validation.Valid
@@ -41,26 +38,9 @@ class PollController {
 	}
 	*/
 
-
 	@Inject
-	SecurityService securityService;
+	LiquidoUtils liquidoUtils
 
-	private String getTeamName() {
-		securityService.getAuthentication().get().getAttributes().get(LiquidoTokenValidator.TEAM_NAME_ATTR)
-	}
-
-	Team getTeamOfCurrentUser() {
-		return (Team)securityService.getAuthentication().get().getAttributes().get(LiquidoTokenValidator.TEAM_ATTRIBUTE)
-	}
-
-	User getCurrentUser() {
-		Authentication auth = securityService.getAuthentication().get()
-		return auth.getAttributes().get(LiquidoTokenValidator.CURRENT_USER_ATTR)
-	}
-
-	private String getCurrentUserEmail() {
-		securityService.username().get()
-	}
 
 	/**
 	 * Get current polls of team
@@ -81,10 +61,20 @@ class PollController {
 	 */
 	@Get("/polls/{pollId}")
 	@Secured([LiquidoTokenValidator.LIQUIDO_ROLE_USER])
-	HttpResponse getProposalsOfPoll(@PathVariable("pollId") Long pollId) {
+	HttpResponse getPoll(@PathVariable("pollId") Long pollId) {
 		Poll poll = Poll.findById(pollId)
 		if (!poll) return HttpResponse.notFound("Poll not found.")
-		HttpResponse.ok(poll)
+		//Do not just simply return the Poll @Entity. Do not expose ballots!
+		def res = [
+			id: poll.id,
+		  title: poll.title,
+			status: poll.status,
+			proposals: poll.proposals,
+			teamId: poll.team.id,
+			//Do NOT expose poll.ballots!
+			ballotOfUser: liquidoUtils.getBallotOfUser(poll, liquidoUtils.getCurrentUser())  // might be null if user did not vote yet
+		]
+		HttpResponse.ok(res)
 	}
 
 	/**
@@ -95,8 +85,8 @@ class PollController {
 	 */
 	@Post("/polls")
 	@Secured([LiquidoTokenValidator.LIQUIDO_ROLE_ADMIN])
-	HttpResponse createPoll(@Body Map<String, String> createPollReq, Authentication auth) {
-		Team team = getTeamOfCurrentUser()
+	HttpResponse createPoll(@Body Map<String, String> createPollReq) {
+		Team team = liquidoUtils.getTeamOfCurrentUser()
 		Poll poll = new @Valid Poll(team, createPollReq.get("title"))
 		poll.save(flush: true)
 		log.info "Admin of team '"+team.name+"' created new Poll"+poll
@@ -109,7 +99,7 @@ class PollController {
 		Poll poll = Poll.findById(pollId)
 		if (!poll) return HttpResponse.notFound([msg: "Cannot add Proposal. Cannot find poll.id="+pollId])
 		if (!poll.status == Poll.Status.ELABORATION) return HttpResponse.badRequest([msg: "Cannot add Proposal. Poll must be in status ELABORATION but poll.status = "+poll.status])
-		Proposal proposal = new Proposal(createProposalReq.get("title"), createProposalReq.get("description"), getCurrentUser().id)
+		Proposal proposal = new Proposal(createProposalReq.get("title"), createProposalReq.get("description"), liquidoUtils.getCurrentUser().id)
 		poll.proposals.push(proposal)
 		poll.save(flush: true)
 		return HttpResponse.created(proposal)
@@ -133,13 +123,12 @@ class PollController {
 	HttpResponse castVote(@PathVariable("pollId") Long pollId, @Body @NotNull Map<String, Object> castVoteReq) {
 		// Sanity checks: Simple and obvious ones first, before hitting the DB!
 		String voterToken = castVoteReq.get("voterToken")
-		List<String> voteOrder  = castVoteReq.get("voteOrder")
+		List<String> voteOrder = (List<String>)castVoteReq.get("voteOrder")
 		if (!voterToken || voterToken.length() < 10) return HttpResponse.badRequest([err: "Cannot cast vote. Need valid voterToken!"])
 		if (!castVoteReq.get("voteOrder")) return HttpResponse.badRequest([err: "Cannot cast vote. Need voteOrder (as Array of IDs) in request!"])
 
-		// Check if voterToken hashes to a known right2Vote
-		String hashedVoterToken = voterToken.md5()
-		Right2Vote right2Vote = Right2Vote.findByHashedVoterToken(hashedVoterToken)
+		// Check if voterToken hashes to a valid right2Vote
+		Right2Vote right2Vote   = liquidoUtils.isVoterTokenValid(voterToken)
 		if (!right2Vote) return HttpResponse.badRequest([err: "Cannot cast vote. VoterToken is unknown."])
 		if (LocalDateTime.now().isAfter(right2Vote.expiresAt)) return HttpResponse.badRequest([err: "Cannot cast vote. VoterToken is expired."])
 

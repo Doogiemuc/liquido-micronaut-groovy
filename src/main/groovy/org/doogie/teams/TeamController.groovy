@@ -12,7 +12,8 @@ import io.micronaut.security.rules.SecurityRule
 import io.micronaut.security.token.jwt.generator.JwtTokenGenerator
 import io.micronaut.validation.Validated
 import io.micronaut.validation.validator.Validator
-import org.doogie.polls.Right2Vote
+import org.doogie.liquido.LiquidoUtils
+import org.doogie.polls.Poll
 import org.doogie.security.LiquidoTokenValidator
 import org.springframework.context.annotation.Profile
 
@@ -33,19 +34,10 @@ class TeamController {
 	@Inject
 	JwtTokenGenerator tokenGenerator
 
-	@Get("/devLogin")
-	@Secured(SecurityRule.IS_ANONYMOUS)
-	@Profile("test")
-	HttpResponse devLogin(@QueryValue String email, @QueryValue String teamName) {
-		log.debug "TEST: devLogin for "+email + " in team " + teamName
-		String token = tokenGenerator.generateToken("sub": email, "teamName": teamName).orElseThrow(() -> new HttpServerException("cannot generate JWT in devLogin"))
-		return HttpResponse.ok([jwt: token])
-	}
+	@Inject
+	LiquidoUtils liquidoUtils
 
 	@Inject Validator validator
-
-	@Value('${liquido.server.voterTokenSecret}')
-	String voterTokenSecret
 
 	@Value('${liquido.inviteUrlPrefix}')
 	String inviteUrlPrefix
@@ -53,20 +45,32 @@ class TeamController {
 	@Value('${liquido.inviteCodeLength}')
 	int inviteCodeLength
 
+
 	/**
-	 * Creates a voterToken and and stores it in a Right2Vote
-	 * Only the user must know his voterToken!
-	 * With this voterToken a user can later cast votes.
-	 *
-	 * @param seed e.g. a users email
-	 * @return the voterToken that only the user must know
+	 * Development login. Only available in environment TEST or LOCAL!
+	 * Devlogin mocks a join team without an inviteCode.
+	 * @param userEmail email to login
+	 * @param teamName team of user. email must be a user in team
+	 * @return user, team, jwt and voterToken
 	 */
-	private String createAndStoreVoterToken(String seed) {
-		String voterToken = (seed+voterTokenSecret).md5()				//TODO: replace MD5 bis BCRYPT hashes
-		Right2Vote right2Vote = Right2Vote.fromVoterToken(voterToken)
-		right2Vote.save(flush: true)
-		return voterToken
+	@Get("/devLogin")
+	@Secured(SecurityRule.IS_ANONYMOUS)
+	@Profile(["test", "local"])
+	HttpResponse devLogin(@QueryValue String userEmail, @QueryValue String teamName) {
+		Team team = Team.findByName(teamName)
+		if (!team) return HttpResponse.unauthorized().body([err: 'Cannot devLogin! Team '+teamName+' found.'])
+		User user = team.members.find {it.email == userEmail }
+		if (!user) return HttpResponse.unauthorized().body([err: "Cannot devLogin! User is not a member of team!", userEmail: userEmail, teamName: teamName])
+
+		JoinTeamRequest joinTeamRequest = new JoinTeamRequest(
+			team.inviteCode,
+			user.name,
+			user.email
+		)
+		log.debug "===> devLogin for <"+userEmail + "> in team '" + teamName + "'"
+		return this.joinTeam(joinTeamRequest)
 	}
+
 
 	/**
 	 * Create a new team.
@@ -77,7 +81,7 @@ class TeamController {
 	@Post("/team")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	HttpResponse createTeam(@Body @Valid CreateTeamRequest req) {
-		String inviteCode = req.teamName.md5().substring(0,this.inviteCodeLength).toUpperCase()
+		String inviteCode = req.teamName.md5().substring(0, this.inviteCodeLength).toUpperCase()
 		Team newTeam = new @Valid Team(req.teamName, req.adminName, req.adminEmail, inviteCode)
 
 		/*
@@ -97,11 +101,14 @@ class TeamController {
 		String jwt = tokenGenerator.generateToken("sub": req.adminEmail, "teamName": newTeam.name, "roles": ["ROLE_FROM_CUSTOM_JWT"])
 		  .orElseThrow(() -> new HttpServerException("Cannot generate JWT."))
 
-		// Generate a LIQUIDO voterToken for the admin
-		String voterToken = createAndStoreVoterToken(req.adminEmail)
+		//TODO: Error case: User (and voterToken) already exists  => login
+		//TODO: Error case: Team with that name already exists => join?
 
 		// Save team to DB
 		newTeam.save(flush: true)
+
+		// Generate a LIQUIDO voterToken for the admin
+		String voterToken = liquidoUtils.createVoterTokenAndStoreRightToVote(newTeam.getAdmin().email, newTeam.id.toString())
 
 		//Implementation note
 		// The Team class is a GORM @Entity. It represents how a Team is stored in the DB.
@@ -120,6 +127,8 @@ class TeamController {
 				inviteLink: inviteUrlPrefix + newTeam.inviteCode,
 				qrCodeUrl: "/img/qrcode.svg"				//TODO: generate QR code
 			],
+			polls: [],														// No polls yet.
+			user: newTeam.getAdmin(),							// First user that created the team becomes the admin of the team
 			jwt: jwt,
 			voterToken: voterToken
 		]
@@ -127,18 +136,36 @@ class TeamController {
 		return HttpResponse.ok(result)
 	}
 
+	/**
+	 * Join a team. PUT is idempotent. This may be called multiple times. User will of course join only once.
+	  * @param req valid JoinTeamRequest with team's inviteCode, userEmail and userName
+	 * @return Info about team, user, jwt and voterToken
+	 */
 	@Put("/team/join")
 	@Secured(SecurityRule.IS_ANONYMOUS)
 	HttpResponse joinTeam(@Body @Valid JoinTeamRequest req) {
 		Team team = Team.find(Filters.eq("inviteCode", req.inviteCode)).first()
-		//Team team = Team.findByInviteCode(req.inviteCode)  // BUG: throws "Internal Server Error: state should be: open"
+
+		//Team team = Team.findByInviteCode(req.inviteCode)  // BUG: throws "Internal Server Error: state should be: open" ???
+
 		if (!team) return HttpResponse.badRequest([err:"Cannot find a team with this inviteCode!"])
-		team.members.push(new User(req.userName, req.userEmail))
+		//upsert
+		Optional<User> existingUser = team.getUserByEmail(req.userEmail)
+		User user
+		if (existingUser.isPresent()) {
+			user = existingUser.get()
+		} else {
+			user = new User(req.userName, req.userEmail)
+			team.members.push(user)
+		}
 		team.save(flush: true)
+
+		def polls = Poll.findAllByTeam(team.id)   // or Poll.list(team: team, max: 10, sort: "id", order: "asc")
 
 		String jwt = tokenGenerator.generateToken("sub": req.userEmail, "teamName": team.name)
 			.orElseThrow(() -> new HttpServerException("cannot generate JWT"))
-		String voterToken = createAndStoreVoterToken(req.userEmail)
+
+		String voterToken = liquidoUtils.createVoterTokenAndStoreRightToVote(req.userEmail, team.id.toString())
 
 		def result = [
 			msg: "Successfully joined team",
@@ -147,36 +174,27 @@ class TeamController {
 				admin: team.getAdmin(),
 				members: team.members
 			],
-			user: [
-				name: req.userName,
-				email: req.userEmail
-			],
+			polls: polls,
+			user: user,
 			jwt: jwt,
 			voterToken: voterToken
 		]
-
-		log.info(req.userEmail+ " joined team '" + team.name+ "':\n" + result)
+		log.info('<' + user.email+ "> successfully joined team '" + team.name+ "'")
 		return HttpResponse.ok(result)
 	}
 
-	//TODO: @Post("/login")  with email and OTT in req.body also for normal users. Also return user's voterToken
-
-
 	@Get("/team")
-	//@Secured(SecurityRule.IS_AUTHENTICATED)		// MUST pass a valid JWT with teamName in "sub" claim
+	//@Secured(SecurityRule.IS_AUTHENTICATED)		// MUST pass a valid JWT with teamName in "sub" claim => this is already the default
 	@Secured([LiquidoTokenValidator.LIQUIDO_ROLE_USER])							// AND user must have this role
 	HttpResponse getTeam(Authentication authentication) {
 		String userEmail = authentication.getName()
 		String teamName = authentication.getAttributes().get(LiquidoTokenValidator.TEAM_NAME_ATTR)
-
 		if (!teamName) return HttpResponse.unauthorized().body([err: "Not authenticated with valid teamName!", teamName: teamName])
-
 		Team team = Team.findByName(teamName)											// this finder method is automatically generated by GORM
-		if (!team) return HttpResponse.notFound([err: "Team '+teamName+' found."])
+		if (!team) return HttpResponse.notFound([err: "Team "+teamName+" found."])
 		if (!team.members.find {it.email == userEmail }) {
 			return HttpResponse.unauthorized().body([err: "User is not a member of team!", userEmail: userEmail, teamName: teamName])
 		}
-
 		return HttpResponse.ok(team)
 	}
 

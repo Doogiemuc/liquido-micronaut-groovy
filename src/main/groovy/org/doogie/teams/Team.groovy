@@ -1,10 +1,8 @@
 package org.doogie.teams
 
 import grails.gorm.annotation.Entity
-import io.micronaut.context.annotation.Value
 import io.micronaut.core.annotation.Introspected
 import io.micronaut.validation.Validated
-import org.doogie.liquido.LiquidoConfig
 
 import javax.validation.constraints.NotBlank
 import javax.validation.constraints.NotEmpty
@@ -51,7 +49,7 @@ class Team {
 	 * @return User with that email or Optional.empty() if that email is not a member of this team
 	 */
 	Optional<User> getUserByEmail(String email) {
-		return Optional.ofNullable(this.members.find({it.email == email}))
+		return Optional.ofNullable(this.members.find {it.email == email} )
 	}
 
 	// These getters will be returned in JSON

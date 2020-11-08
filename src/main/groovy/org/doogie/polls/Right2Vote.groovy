@@ -15,11 +15,21 @@ import java.time.LocalDateTime
  *
  * Now when the user cast's his vote, he sends an anonymous request with his voterToken. The server calculates the hashedVoterToken
  * and looks it up in the list of stored Right2Votes. If found, then this anonymous voter is allowed to vote.
+ *
+ * The value Right2Vote.hashedVoterToken must be globally unique per team.
  */
 @Introspected
 @Entity
 class Right2Vote {
+
+	/**
+	 * The hashed value of the user's secret(!) voterToken
+	 * When the user can provide his voterToken that hashes to this value,
+	 * then he is allowed to vote.
+	 * voterTokens must be unique throughout all user's and teams. They are seeded with a salt.
+	 */
 	@NotEmpty String hashedVoterToken
+
 	@NotNull  LocalDateTime expiresAt
 	//TODO: @Nullable ObjectId publicProxyId
 
@@ -29,17 +39,9 @@ class Right2Vote {
 
 	Right2Vote() { }
 
-	private Right2Vote(String hashedVoterToken, LocalDateTime expiresAt) {
+	Right2Vote(String hashedVoterToken, LocalDateTime expiresAt) {
 		this.hashedVoterToken = hashedVoterToken
 		this.expiresAt = expiresAt
 	}
 
-	/**
-	 * Create a Right2Vote for the given voterToken
-	 * @param voterToken a voters token
-	 * @return the Right2Vote with the hashedVoterToken. Expires in 14 days.
-	 */
-	static Right2Vote fromVoterToken(String voterToken) {
-		return new Right2Vote(voterToken.md5(), LocalDateTime.now().plusDays(14))
-	}
 }

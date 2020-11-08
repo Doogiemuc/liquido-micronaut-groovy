@@ -8,8 +8,11 @@ import javax.validation.constraints.NotBlank
 
 /**
  * A User in a team.
+ *
  * This class `User` is its own GORM @Entity, but it is only used as an embedded document in a `Team`.
  * It is not its own collection in MongoDB. Users are only part of a given Team.
+ *
+ * Email is not globally unique! One `email` can be a member of several teams. But each of these `User` will have a different user.id
  */
 @Introspected
 @Entity

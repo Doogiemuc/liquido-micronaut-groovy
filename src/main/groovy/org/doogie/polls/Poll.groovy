@@ -25,7 +25,9 @@ class Poll {
 	@NotNull
 	Team team
 
+	/** Title of the poll. Must be unique in the team */
 	@NotBlank @Size(min=10) String title
+
 	@NotNull  Status status  = Status.ELABORATION
 
 	List<Proposal> proposals = new ArrayList<>()
@@ -35,7 +37,10 @@ class Poll {
 
 	// MongoDB-GORM: proposals and ballots are embedded documents
 	static embedded = ['proposals', 'ballots']
-	static mapping = { collection "polls" }
+	static mapping = {
+		collection "polls"
+		title index: true, indexAttributes: [unique: true]
+	}
 
 	Poll() { }
 

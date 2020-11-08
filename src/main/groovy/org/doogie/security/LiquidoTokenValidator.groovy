@@ -90,7 +90,7 @@ class LiquidoTokenValidator implements TokenValidator {
 		// check if User with that email is member of Team
 		User user = team.members.find {it.email == email }
 		if (!user) {
-			log.debug("User with .email='"+email+"' is not part of team '"+teamName+"' => Unauthorized")
+			log.debug("User with email='"+email+"' is not part of team '"+teamName+"' => Unauthorized")
 			return Flowable.empty()
 		}
 
