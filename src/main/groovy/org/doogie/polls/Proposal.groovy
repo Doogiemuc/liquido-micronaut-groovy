@@ -1,9 +1,11 @@
 package org.doogie.polls
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import grails.gorm.annotation.Entity
 import io.micronaut.core.annotation.Introspected
 import org.bson.types.ObjectId
+import org.doogie.liquido.MongoObjectIdDeserializer
 
 import javax.validation.constraints.NotBlank
 import javax.validation.constraints.NotNull
@@ -17,6 +19,8 @@ import javax.validation.constraints.Size
 @Entity
 class Proposal {
 
+	/** Proposal is a mongoDB embedded entity inside Poll. Therefore we create our own ObjectId */
+	//@JsonDeserialize(using = MongoObjectIdDeserializer.class)
 	ObjectId id
 
 	@NotBlank	@Size(min=10) String title
@@ -37,5 +41,17 @@ class Proposal {
 
 	long getNumSupporters() {
 		supporters != null ? supporters.size() : 0
+	}
+
+
+	@Override
+	public String toString() {
+		return "Proposal[" +
+			"id=" + id +
+			", title='" + title + '\'' +
+			", description='" + description + '\'' +
+			", createdById=" + createdById +
+			", numSupporters=" + getNumSupporters() +
+			']';
 	}
 }

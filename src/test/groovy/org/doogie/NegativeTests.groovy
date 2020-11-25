@@ -61,32 +61,6 @@ class NegativeTests extends Specification {
 	static String inviteCode
 
 
-	void "devLogin"() {
-		log.info "against backend at "+embeddedServer.URL
-		log.info("mongodb.uri = "+this.mongoDbUri)
-		log.info "=================================================================="
-
-		given:
-		this.teamName = "Negative Team "+now
-		this.adminEmail = "admin_negative"+now+"@liquido.me"
-		this.userEmail  = "negative_user"+now+"@liquido.me"
-
-		when: "GET JWT for user"
-		URI uri1 = UriBuilder.of("/devLogin").queryParam("email", userEmail).queryParam("teamName", teamName).build()
-		Map res1 = client.retrieve(HttpRequest.GET(uri1), Map.class)
-		this.userJwt = res1.get('jwt')
-		then:
-		this.userJwt
-
-		when: "get JWT for admin"
-		URI uri2 = UriBuilder.of("/devLogin").queryParam("email", adminEmail).queryParam("teamName", teamName).build()
-		Map res2 = client.retrieve(HttpRequest.GET(uri2), Map.class)
-		this.adminJwt = res2.get('jwt')
-		then:
-		this.adminJwt
-
-	}
-
 	void "create Team should return 400 when teamName is too short"() {
 		given:
 		def newTeamJson = [

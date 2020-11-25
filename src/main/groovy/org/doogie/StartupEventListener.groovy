@@ -5,6 +5,7 @@ import io.micronaut.context.annotation.Value
 import io.micronaut.context.env.Environment
 import io.micronaut.context.event.StartupEvent
 import io.micronaut.runtime.event.annotation.EventListener
+import io.micronaut.runtime.server.EmbeddedServer
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,6 +20,16 @@ class StartupEventListener {
 	@Value('${liquido.server.voterTokenSecret}')
 	String voterTokenSecret
 
+	@Value('${micronaut.server.context-path}')
+	String contextPath
+
+	@Value('${mongodb.uri}')
+	String mongoDbUri
+
+
+	@Inject
+	EmbeddedServer embeddedServer
+
 	@Inject
 	Environment env
 
@@ -28,8 +39,10 @@ class StartupEventListener {
 		//TODO: create typesafe org.doogie.liquido.LiquidoConfig with annotations
 
 		//TODO: sanity check DB ...
-		log.info("LIQUIDO backend is running")
-
+		log.info("==========================================================================")
+		log.info("LIQUIDO backend is running at " + embeddedServer.getURL() + contextPath)
+		log.info("Connected to Database " + mongoDbUri)
+		log.info("==========================================================================")
 
 	}
 }

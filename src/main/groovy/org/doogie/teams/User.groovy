@@ -19,8 +19,8 @@ import javax.validation.constraints.NotBlank
 class User {
 
 	/**
-	 * Although users are embedded in a Team, they do have a unique id.
-	 * This is used when referencing a User for example as the creator of a proposal.
+	 * Users are embedded in a Team. Each user has a unique id.
+	 * This user.id is for example used when referencing a User as the creator of a proposal.
 	 */
 	ObjectId id
 
@@ -52,6 +52,6 @@ class User {
 
 	@Override
 	String toString() {
-		return '{"name":"' + name + '","email":"'+email+'"}'
+		return 'User' + [id: id, name: name, email: email]
 	}
 }

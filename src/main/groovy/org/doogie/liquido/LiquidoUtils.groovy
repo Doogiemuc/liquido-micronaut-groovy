@@ -43,12 +43,15 @@ class LiquidoUtils {
 		return auth.getAttributes().get(LiquidoTokenValidator.CURRENT_USER_ATTR)
 	}
 
-	/*
+	/**
+	 * Get Current user's email adress.
+	 * @return the email of the currently logged in user.
+	 * @throws NoSuchElementException When no user is logged in.
+	 */
 	String getCurrentUserEmail() {
+		// We use email as username
 		securityService.username().get()
 	}
-  */
-
 
 
 

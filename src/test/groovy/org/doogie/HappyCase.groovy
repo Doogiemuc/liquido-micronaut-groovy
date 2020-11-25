@@ -1,23 +1,20 @@
- package org.doogie
+package org.doogie
 
-import groovy.json.JsonBuilder
+
 import groovy.json.JsonSlurper
 import groovy.util.logging.Slf4j
-import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.BlockingHttpClient
 import io.micronaut.http.client.HttpClient
- import io.micronaut.http.client.annotation.Client
- import io.micronaut.runtime.server.EmbeddedServer
+import io.micronaut.http.client.annotation.Client
+import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.test.annotation.MicronautTest
- import org.doogie.polls.Poll
+import org.doogie.polls.Poll
 import org.doogie.polls.Proposal
 import org.doogie.teams.Team
-import org.grails.datastore.mapping.mongo.MongoDatastore
-import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Stepwise
@@ -193,7 +190,10 @@ class HappyCase extends Specification {
 		assert poll : "Need poll to add proposal"
 
 		when: "adding a proposal"
+		// Keep in mind that this does not return the Poll or Proposal GORM @entity. This returns a different JSON.
 		Proposal prop = client.retrieve(HttpRequest.POST("/polls/${poll.id}/proposals", newProposal).bearerAuth(userJwt), Proposal.class)
+		log.debug("Retrieved proposal", prop.toString())
+		//def json = slurper.parseText(jsonStr)
 
 		then: "saved proposal has an ID and its title is correct"
 		prop.id
